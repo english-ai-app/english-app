@@ -9,6 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { launchCamera, Asset } from 'react-native-image-picker';
+import { detectObjectFromImage } from '../services/detectionService';
 
 import HeaderBar from '../components/HeaderBar';
 import ProgressCard from '../components/ProgressCard';
@@ -19,7 +20,11 @@ import StudyHistory from '../components/StudyHistory';
 import AiAssistantCard from '../components/AiAssistantCard';
 import BottomNav from '../components/BottomNav';
 
-const HomeScreen: React.FC = () => {
+type HomeScreenProps = {
+  onOpenCamera?: () => void;
+};
+
+const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenCamera }) => {
   const requestCameraPermission = async (): Promise<boolean> => {
     if (Platform.OS !== 'android') return true;
 
@@ -37,6 +42,11 @@ const HomeScreen: React.FC = () => {
   };
 
   const handleCameraPress = async (): Promise<void> => {
+    if (onOpenCamera) {
+      onOpenCamera();
+      return;
+    }
+
     const hasPermission = await requestCameraPermission();
 
     if (!hasPermission) {
@@ -47,17 +57,28 @@ const HomeScreen: React.FC = () => {
       return;
     }
 
-    const result = await launchCamera({
-      mediaType: 'photo',
-      cameraType: 'back',
-      quality: 0.8,
-      saveToPhotos: true,
-    });
+    let result;
+
+    try {
+      result = await launchCamera({
+        mediaType: 'photo',
+        cameraType: 'back',
+        quality: 0.5,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        includeBase64: true,
+        saveToPhotos: false,
+      });
+    } catch (error: any) {
+      Alert.alert('Lỗi camera', error?.message || 'Không mở được camera');
+      return;
+    }
 
     if (result.didCancel) return;
 
     if (result.errorCode) {
-      Alert.alert('Lỗi camera', result.errorMessage || 'Không thể mở camera');
+      const message = result.errorMessage || 'Không thể mở camera';
+      Alert.alert('Lỗi camera', `${message} (${result.errorCode})`);
       return;
     }
 
@@ -68,39 +89,23 @@ const HomeScreen: React.FC = () => {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('file', {
-      uri: asset.uri,
-      type: asset.type || 'image/jpeg',
-      name: asset.fileName || 'object.jpg',
-    } as any);
+    if (!asset.base64) {
+      Alert.alert('Lỗi', 'Không lấy được dữ liệu ảnh base64');
+      return;
+    }
 
     try {
-      const response = await fetch('http://192.168.1.166:9000/api/detect', {
-        method: 'POST',
-        body: formData,
+      const detectResult = await detectObjectFromImage({
+        base64: asset.base64,
+        type: asset.type,
+        fileName: asset.fileName,
       });
-
-      const rawText = await response.text();
-      let data: any = {};
-
-      try {
-        data = rawText ? JSON.parse(rawText) : {};
-      } catch {
-        data = { message: rawText || 'Không nhận diện được' };
-      }
-
-      if (!response.ok) {
-        throw new Error(data?.message || data?.error || 'Server trả về lỗi');
-      }
-
-      const labels = Array.isArray(data?.labels) ? data.labels : [];
-      const label = typeof data?.label === 'string' ? data.label : '';
-      const message = typeof data?.message === 'string' ? data.message : '';
       const finalText =
-        labels.length > 0
-          ? labels.join(', ')
-          : label || message || 'Không nhận diện được';
+        detectResult.labels.length > 0
+          ? detectResult.labels
+              .map(item => `${item.label} (${Math.round(item.confidence * 100)}%)`)
+              .join(', ')
+          : 'Không nhận diện được vật thể';
 
       Alert.alert('Kết quả', finalText);
     } catch (error: any) {
@@ -121,7 +126,7 @@ const HomeScreen: React.FC = () => {
 
           <View style={styles.featureGrid}>
             <FeatureCard
-              icon="◉"
+              icon="◎"
               title="Quét Vật Thể"
               subtitle="Chụp & Học từ mới"
               bgColor="#f2f5f7"
