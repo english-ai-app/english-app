@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
 type FeatureCardProps = {
   icon: string;
@@ -7,6 +7,7 @@ type FeatureCardProps = {
   subtitle: string;
   bgColor: string;
   iconBg: string;
+  onPress?: () => void;
 };
 
 const FeatureCard: React.FC<FeatureCardProps> = ({
@@ -15,16 +16,21 @@ const FeatureCard: React.FC<FeatureCardProps> = ({
   subtitle,
   bgColor,
   iconBg,
+  onPress,
 }) => {
   return (
-    <View style={[styles.card, { backgroundColor: bgColor }]}>
+    <TouchableOpacity
+      activeOpacity={0.85}
+      style={[styles.card, { backgroundColor: bgColor }]}
+      onPress={onPress}
+    >
       <View style={[styles.iconWrap, { backgroundColor: iconBg }]}>
         <Text style={styles.iconText}>{icon}</Text>
       </View>
 
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
-    </View>
+    </TouchableOpacity>
   );
 };
 

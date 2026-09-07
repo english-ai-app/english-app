@@ -2,62 +2,76 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 
+export type BottomTabKey = 'home' | 'review' | 'course' | 'community';
+
 type BottomNavProps = {
+  activeTab?: BottomTabKey;
   onCameraPress?: () => void;
+  onTabPress?: (tab: BottomTabKey) => void;
 };
 
 const tabs = [
   {
+    key: 'home',
     label: 'Trang chủ',
     icon: 'home-outline',
     activeIcon: 'home',
-    active: true,
   },
   {
+    key: 'review',
     label: 'Ôn tập',
     icon: 'book-outline',
     activeIcon: 'book',
-    active: false,
   },
   {
+    key: 'course',
+    label: 'Khóa học',
+    icon: 'school-outline',
+    activeIcon: 'school',
+  },
+  {
+    key: 'community',
     label: 'Cộng đồng',
-    icon: 'star-outline',
-    activeIcon: 'star',
-    active: false,
+    icon: 'people-outline',
+    activeIcon: 'people',
   },
-  {
-    label: 'Hồ sơ',
-    icon: 'person-outline',
-    activeIcon: 'person',
-    active: false,
-  },
-];
+] as const;
 
-const BottomNav: React.FC<BottomNavProps> = ({ onCameraPress }) => {
+const BottomNav: React.FC<BottomNavProps> = ({
+  activeTab = 'home',
+  onCameraPress,
+  onTabPress,
+}) => {
   const leftTabs = tabs.slice(0, 2);
   const rightTabs = tabs.slice(2);
+
+  const renderTab = (tab: (typeof tabs)[number]) => {
+    const active = activeTab === tab.key;
+
+    return (
+      <TouchableOpacity
+        key={tab.key}
+        style={styles.tabItem}
+        onPress={() => onTabPress?.(tab.key)}
+      >
+        <View style={[styles.iconCircle, active && styles.iconActive]}>
+          <Icon
+            name={active ? tab.activeIcon : tab.icon}
+            size={20}
+            style={[styles.iconText, active && styles.iconTextActive]}
+          />
+        </View>
+        <Text style={[styles.label, active && styles.labelActive]}>
+          {tab.label}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.navWrap}>
       <View style={styles.tabRow}>
-        {leftTabs.map(tab => (
-          <TouchableOpacity
-            key={tab.label}
-            style={styles.tabItem}
-            onPress={() => console.log(`Navigating to ${tab.label}`)}
-          >
-            <View style={[styles.iconCircle, tab.active && styles.iconActive]}>
-              <Icon
-                name={tab.active ? tab.activeIcon : tab.icon}
-                size={20}
-                style={[styles.iconText, tab.active && styles.iconTextActive]}
-              />
-            </View>
-            <Text style={[styles.label, tab.active && styles.labelActive]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {leftTabs.map(renderTab)}
 
         <TouchableOpacity
           activeOpacity={0.85}
@@ -65,29 +79,12 @@ const BottomNav: React.FC<BottomNavProps> = ({ onCameraPress }) => {
           style={styles.cameraItem}
         >
           <View style={styles.cameraCircle}>
-            <Icon name="camera" size={20} style={styles.cameraIcon} />
+            <Icon name="camera" size={21} style={styles.cameraIcon} />
           </View>
-          <Text style={styles.label}>Quét</Text>
+          <Text style={styles.cameraLabel}>Quét</Text>
         </TouchableOpacity>
 
-        {rightTabs.map(tab => (
-          <TouchableOpacity
-            key={tab.label}
-            style={styles.tabItem}
-            onPress={() => console.log(`Navigating to ${tab.label}`)}
-          >
-            <View style={[styles.iconCircle, tab.active && styles.iconActive]}>
-              <Icon
-                name={tab.active ? tab.activeIcon : tab.icon}
-                size={20}
-                style={[styles.iconText, tab.active && styles.iconTextActive]}
-              />
-            </View>
-            <Text style={[styles.label, tab.active && styles.labelActive]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {rightTabs.map(renderTab)}
       </View>
     </View>
   );
@@ -112,22 +109,22 @@ const styles = StyleSheet.create({
   tabRow: {
     flex: 1,
     flexDirection: 'row',
-    justifyContent: 'space-evenly',
     alignItems: 'center',
+    justifyContent: 'space-evenly',
     paddingHorizontal: 8,
     paddingTop: 8,
     paddingBottom: 8,
   },
   tabItem: {
-    alignItems: 'center',
     flex: 1,
+    alignItems: 'center',
   },
   iconCircle: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 4,
     backgroundColor: '#f3f4f6',
   },
@@ -142,34 +139,40 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   label: {
-    fontSize: 11,
     color: '#6b7280',
+    fontSize: 11,
   },
   labelActive: {
     color: '#1ca8ff',
     fontWeight: '700',
   },
   cameraItem: {
-    alignItems: 'center',
     flex: 1,
+    alignItems: 'center',
+    transform: [{ translateY: -10 }],
   },
   cameraCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#1ca8ff',
-    justifyContent: 'center',
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     alignItems: 'center',
-    marginBottom: 4,
+    justifyContent: 'center',
+    marginBottom: 3,
+    backgroundColor: '#1ca8ff',
     shadowColor: '#1ca8ff',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.24,
+    shadowRadius: 10,
+    elevation: 7,
   },
   cameraIcon: {
-    fontSize: 18,
     color: '#ffffff',
+    fontSize: 21,
+  },
+  cameraLabel: {
+    color: '#1ca8ff',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });
 

@@ -1,29 +1,55 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import Icon from 'react-native-vector-icons/Ionicons';
 
-const HeaderBar: React.FC = () => {
+type HeaderBarProps = {
+  streakDays?: number;
+  xp?: number;
+  onProfilePress?: () => void;
+  onNotificationsPress?: () => void;
+};
+
+const HeaderBar: React.FC<HeaderBarProps> = ({
+  streakDays = 12,
+  xp = 1250,
+  onProfilePress,
+  onNotificationsPress,
+}) => {
   return (
     <View style={styles.wrapper}>
-      {/* <View style={styles.statusRow}>
-        <Text style={styles.timeText}>9:41</Text>
-        <Text style={styles.statusText}>📶 ▣ 🔋</Text>
-      </View> */}
+      <TouchableOpacity
+        activeOpacity={0.85}
+        style={styles.profileButton}
+        onPress={onProfilePress}
+      >
+        <Icon name="person" size={18} color="#fff" />
+      </TouchableOpacity>
 
-      <View style={styles.mainRow}>
-        <View style={styles.logoWrap}>
-          <Text style={styles.logoText}>◌</Text>
-        </View>
-
-        <Text style={styles.brandText}>SnapLingua</Text>
-
-        <View style={styles.headerRight}>
-          <View style={styles.bubbleSmall}>
-            <Text style={styles.bubbleText}>◔</Text>
-          </View>
-          <View style={styles.bubbleLight}>
-            <Text style={styles.bubbleText}>☆</Text>
+      <View style={styles.headerRight}>
+        <View style={[styles.statPill, styles.streakPill]}>
+          <Icon name="flame" size={16} color="#f97316" />
+          <View>
+            <Text style={styles.statValue}>{streakDays}</Text>
+            <Text style={styles.statLabel}>Ngày</Text>
           </View>
         </View>
+
+        <View style={[styles.statPill, styles.xpPill]}>
+          <Icon name="flash" size={16} color="#eab308" />
+          <View>
+            <Text style={styles.statValue}>{xp.toLocaleString('en-US')}</Text>
+            <Text style={styles.statLabel}>XP</Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={styles.notificationButton}
+          onPress={onNotificationsPress}
+        >
+          <Icon name="notifications-outline" size={21} color="#334155" />
+          <View style={styles.notificationDot} />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -31,71 +57,79 @@ const HeaderBar: React.FC = () => {
 
 const styles = StyleSheet.create({
   wrapper: {
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 18,
   },
-  statusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  profileButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
-    paddingHorizontal: 4,
-    marginBottom: 14,
-  },
-  timeText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  statusText: {
-    fontSize: 16,
-    color: '#111827',
-  },
-  mainRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  logoWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: '#1ca8ff',
     justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  logoText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  brandText: {
-    flex: 1,
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1f2937',
+    backgroundColor: '#60a5fa',
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    elevation: 4,
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  bubbleSmall: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center',
+  statPill: {
+    height: 38,
+    minWidth: 74,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 10,
+    gap: 7,
+    borderWidth: 1,
+    borderRadius: 19,
+    paddingHorizontal: 11,
+    backgroundColor: '#fff',
   },
-  bubbleLight: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#f4e8b8',
-    justifyContent: 'center',
+  streakPill: {
+    borderColor: '#fed7aa',
+  },
+  xpPill: {
+    borderColor: '#fde68a',
+  },
+  statValue: {
+    color: '#1f2937',
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 14,
+  },
+  statLabel: {
+    color: '#64748b',
+    fontSize: 10,
+    fontWeight: '700',
+    lineHeight: 12,
+  },
+  notificationButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
-  bubbleText: {
-    fontSize: 16,
+  notificationDot: {
+    position: 'absolute',
+    top: 9,
+    right: 10,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
+    borderWidth: 1,
+    borderColor: '#fff',
   },
 });
 

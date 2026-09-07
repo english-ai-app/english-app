@@ -5,7 +5,7 @@ import axios, {
   AxiosResponse,
 } from 'axios';
 
-const API_BASE_URL = 'http://192.168.1.9:8080';
+const API_BASE_URL = 'http://192.168.1.94:8080';
 
 type TokenProvider = () => string | null | Promise<string | null>;
 
