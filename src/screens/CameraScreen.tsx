@@ -4,8 +4,6 @@ import {
   Alert,
   GestureResponderEvent,
   Image,
-  PermissionsAndroid,
-  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -13,35 +11,48 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Asset, launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import RNFS from 'react-native-fs';
+import { Asset, launchImageLibrary } from 'react-native-image-picker';
 import Sound from 'react-native-sound';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {
+  Camera,
+  useCameraDevice,
+  useCameraPermission,
+} from 'react-native-vision-camera';
+import {
   DetectedLabel,
+  DetectionVocabularyItem,
   detectObjectFromImage,
 } from '../services/detectionService';
-
-const meaningByLabel: Record<string, string> = {
-  chair: 'cái ghế',
-  laptop: 'máy tính xách tay',
-  mouse: 'chuột máy tính',
-  keyboard: 'bàn phím',
-  'cell phone': 'điện thoại',
-  remote: 'điều khiển',
-  book: 'quyển sách',
-  bottle: 'chai nước',
-  cup: 'cái cốc',
-  person: 'người',
-  table: 'cái bàn',
-  'dining table': 'bàn ăn',
-};
-
-const getMeaning = (label: string): string =>
-  meaningByLabel[label.toLowerCase()] || 'từ vựng nhận diện từ ảnh';
 
 const toPercent = (value: number): `${number}%` => {
   const clamped = Math.min(Math.max(value, 0), 1);
   return `${clamped * 100}%`;
+};
+
+const readImageAsBase64 = async (uri: string): Promise<string> => {
+  if (uri.startsWith('data:')) {
+    return uri.split(',')[1] || '';
+  }
+
+  const filePath = decodeURIComponent(uri.replace('file://', ''));
+
+  try {
+    return await RNFS.readFile(filePath, 'base64');
+  } catch (error) {
+    const stat = await RNFS.stat(uri);
+    const originalPath = (stat as { originalFilepath?: string }).originalFilepath;
+    if (originalPath) {
+      return RNFS.readFile(originalPath, 'base64');
+    }
+    throw error;
+  }
+};
+
+const formatIpa = (ipa?: string): string => {
+  if (!ipa) return '';
+  return ipa.startsWith('/') ? ipa : `/${ipa}/`;
 };
 
 type Size = {
@@ -49,154 +60,215 @@ type Size = {
   height: number;
 };
 
+type CameraMode = 'camera' | 'result';
+type CameraPosition = 'back' | 'front';
+
 type CameraScreenProps = {
   autoOpen?: boolean;
   onBack?: () => void;
 };
 
 const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
+  const cameraRef = useRef<Camera>(null);
   const soundRef = useRef<Sound | null>(null);
+  const { hasPermission, requestPermission } = useCameraPermission();
+
+  const [mode, setMode] = useState<CameraMode>('camera');
+  const [cameraPosition, setCameraPosition] = useState<CameraPosition>('back');
+  const [torchEnabled, setTorchEnabled] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState<Size | null>(null);
   const [previewSize, setPreviewSize] = useState<Size | null>(null);
   const [loading, setLoading] = useState(false);
   const [labels, setLabels] = useState<DetectedLabel[]>([]);
-  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
-  const [playingLabel, setPlayingLabel] = useState<string | null>(null);
+  const [items, setItems] = useState<DetectionVocabularyItem[]>([]);
+  const [selectedWords, setSelectedWords] = useState<string[]>([]);
+  const [playingWord, setPlayingWord] = useState<string | null>(null);
 
-  const selectedCount = selectedLabels.length;
+  const device = useCameraDevice(cameraPosition);
+  const selectedCount = selectedWords.length;
   const boxedLabels = useMemo(
     () => labels.filter(item => item.boundingBox).slice(0, 12),
     [labels],
   );
 
-  const requestCameraPermission = useCallback(async (): Promise<boolean> => {
-    if (Platform.OS !== 'android') return true;
+  useEffect(() => {
+    if (!hasPermission) {
+      requestPermission();
+    }
+  }, [hasPermission, requestPermission]);
 
-    const granted = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.CAMERA,
-      {
-        title: 'Quyền truy cập camera',
-        message: 'Ứng dụng cần quyền camera để chụp ảnh nhận diện vật thể.',
-        buttonPositive: 'Cho phép',
-        buttonNegative: 'Từ chối',
-      },
-    );
+  useEffect(() => {
+    Sound.setCategory('Playback');
 
-    return granted === PermissionsAndroid.RESULTS.GRANTED;
+    return () => {
+      soundRef.current?.stop();
+      soundRef.current?.release();
+      soundRef.current = null;
+    };
   }, []);
 
-  const detectFromAsset = useCallback(async (asset: Asset): Promise<void> => {
-    if (!asset.uri || !asset.base64) {
-      Alert.alert('Lỗi', 'Không lấy được dữ liệu ảnh');
+  const openCamera = useCallback(() => {
+    setMode('camera');
+  }, []);
+
+  const closeCamera = useCallback(() => {
+    setMode('result');
+  }, []);
+
+  const runDetection = useCallback(
+    async (payload: {
+      uri: string;
+      base64: string;
+      type?: string;
+      fileName?: string;
+      width?: number;
+      height?: number;
+    }): Promise<void> => {
+      setImageUri(payload.uri);
+      setImageSize({
+        width: payload.width || 1,
+        height: payload.height || 1,
+      });
+      setLabels([]);
+      setItems([]);
+      setSelectedWords([]);
+      setMode('result');
+      setLoading(true);
+
+      try {
+        const detectResult = await detectObjectFromImage({
+          base64: payload.base64,
+          type: payload.type,
+          fileName: payload.fileName,
+        });
+        setLabels(detectResult.labels);
+        setItems(detectResult.items);
+        setSelectedWords(detectResult.items.slice(0, 1).map(item => item.word));
+      } catch (error: any) {
+        console.log('DETECT_IMAGE_ERROR:', error);
+        Alert.alert('Lỗi', error?.message || 'Không gửi được yêu cầu');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
+  const detectFromAsset = useCallback(
+    async (asset: Asset): Promise<void> => {
+      if (!asset.uri) {
+        Alert.alert('Lỗi', 'Không lấy được dữ liệu ảnh');
+        return;
+      }
+
+      const base64 = asset.base64 || (await readImageAsBase64(asset.uri));
+
+      await runDetection({
+        uri: asset.uri,
+        base64,
+        type: asset.type,
+        fileName: asset.fileName,
+        width: asset.width,
+        height: asset.height,
+      });
+    },
+    [runDetection],
+  );
+
+  const takePhoto = useCallback(async (): Promise<void> => {
+    if (!hasPermission) {
+      const granted = await requestPermission();
+      if (!granted) {
+        Alert.alert(
+          'Thiếu quyền camera',
+          'Vui lòng cấp quyền camera trong cài đặt để tiếp tục.',
+        );
+        return;
+      }
+    }
+
+    if (!cameraRef.current) {
+      Alert.alert('Lỗi', 'Camera chưa sẵn sàng');
       return;
     }
 
-    setImageUri(asset.uri);
-    setImageSize({
-      width: asset.width || 1,
-      height: asset.height || 1,
-    });
-    setLabels([]);
-    setSelectedLabels([]);
     setLoading(true);
-
     try {
-      const detectResult = await detectObjectFromImage({
-        base64: asset.base64,
-        type: asset.type,
-        fileName: asset.fileName,
+      const photo = await cameraRef.current.takePhoto({
+        flash: torchEnabled && device?.hasFlash ? 'on' : 'off',
       });
-      setLabels(detectResult.labels);
-      setSelectedLabels(detectResult.labels.slice(0, 1).map(item => item.label));
+      const uri = photo.path.startsWith('file://')
+        ? photo.path
+        : `file://${photo.path}`;
+      const base64 = await RNFS.readFile(photo.path, 'base64');
+
+      await runDetection({
+        uri,
+        base64,
+        type: 'image/jpeg',
+        fileName: photo.path.split('/').pop() || 'camera-photo.jpg',
+        width: photo.width,
+        height: photo.height,
+      });
     } catch (error: any) {
-      console.log('DETECT_IMAGE_ERROR:', error);
-      Alert.alert('Lỗi', error?.message || 'Không gửi được yêu cầu');
+      console.log('TAKE_PHOTO_ERROR:', error);
+      Alert.alert('Lỗi', error?.message || 'Không chụp được ảnh');
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  const takePhoto = useCallback(async (): Promise<void> => {
-    const hasPermission = await requestCameraPermission();
-
-    if (!hasPermission) {
-      Alert.alert(
-        'Thiếu quyền camera',
-        'Vui lòng cấp quyền camera trong cài đặt để tiếp tục.',
-      );
-      return;
-    }
-
-    const result = await launchCamera({
-      mediaType: 'photo',
-      cameraType: 'back',
-      quality: 0.5,
-      maxWidth: 1024,
-      maxHeight: 1024,
-      includeBase64: true,
-      saveToPhotos: false,
-    });
-
-    if (result.didCancel) return;
-
-    if (result.errorCode) {
-      const message = result.errorMessage || 'Không thể mở camera';
-      Alert.alert('Lỗi', `${message} (${result.errorCode})`);
-      return;
-    }
-
-    const asset = result.assets?.[0];
-
-    if (!asset) {
-      Alert.alert('Lỗi', 'Không lấy được dữ liệu ảnh');
-      return;
-    }
-
-    await detectFromAsset(asset);
-  }, [detectFromAsset, requestCameraPermission]);
+  }, [device?.hasFlash, hasPermission, requestPermission, runDetection, torchEnabled]);
 
   const pickImageFromLibrary = useCallback(async (): Promise<void> => {
-    const result = await launchImageLibrary({
-      mediaType: 'photo',
-      quality: 0.5,
-      maxWidth: 1024,
-      maxHeight: 1024,
-      includeBase64: true,
-      selectionLimit: 1,
-    });
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        quality: 0.5,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        includeBase64: true,
+        selectionLimit: 1,
+      });
 
-    if (result.didCancel) return;
+      if (result.didCancel) return;
 
-    if (result.errorCode) {
-      const message = result.errorMessage || 'Không thể mở thư viện ảnh';
-      Alert.alert('Lỗi', `${message} (${result.errorCode})`);
-      return;
+      if (result.errorCode) {
+        const message = result.errorMessage || 'Không thể mở thư viện ảnh';
+        Alert.alert('Lỗi', `${message} (${result.errorCode})`);
+        return;
+      }
+
+      const asset = result.assets?.[0];
+
+      if (!asset) {
+        Alert.alert('Lỗi', 'Không lấy được dữ liệu ảnh');
+        return;
+      }
+
+      await detectFromAsset(asset);
+    } catch (error: any) {
+      console.log('PICK_IMAGE_ERROR:', error);
+      Alert.alert('Lỗi', error?.message || 'Không chọn được ảnh');
     }
-
-    const asset = result.assets?.[0];
-
-    if (!asset) {
-      Alert.alert('Lỗi', 'Không lấy được dữ liệu ảnh');
-      return;
-    }
-
-    await detectFromAsset(asset);
   }, [detectFromAsset]);
 
-  const playPronunciation = useCallback((label: string): void => {
-    const word = label.trim();
-    if (!word) return;
+  const playPronunciation = useCallback((word: string, audioUrl?: string): void => {
+    const text = word.trim();
+    if (!text) return;
 
     soundRef.current?.stop();
     soundRef.current?.release();
     soundRef.current = null;
-    setPlayingLabel(label);
+    setPlayingWord(word);
 
-    const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=${encodeURIComponent(word)}`;
+    const url =
+      audioUrl ||
+      `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=${encodeURIComponent(
+        text,
+      )}`;
     const sound = new Sound(url, undefined, error => {
       if (error) {
-        setPlayingLabel(null);
+        setPlayingWord(null);
         Alert.alert('Lỗi âm thanh', 'Không phát được phát âm của từ này.');
         return;
       }
@@ -207,23 +279,13 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
         if (soundRef.current === sound) {
           soundRef.current = null;
         }
-        setPlayingLabel(null);
+        setPlayingWord(null);
 
         if (!success) {
           Alert.alert('Lỗi âm thanh', 'Phát âm bị gián đoạn.');
         }
       });
     });
-  }, []);
-
-  useEffect(() => {
-    Sound.setCategory('Playback');
-
-    return () => {
-      soundRef.current?.stop();
-      soundRef.current?.release();
-      soundRef.current = null;
-    };
   }, []);
 
   const getDetectionBoxStyle = (
@@ -259,11 +321,11 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
     };
   };
 
-  const toggleLabel = (label: string): void => {
-    setSelectedLabels(current =>
-      current.includes(label)
-        ? current.filter(item => item !== label)
-        : [...current, label],
+  const toggleWord = (word: string): void => {
+    setSelectedWords(current =>
+      current.includes(word)
+        ? current.filter(item => item !== word)
+        : [...current, word],
     );
   };
 
@@ -279,6 +341,97 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
     );
   };
 
+  if (mode === 'camera') {
+    return (
+      <View style={styles.cameraRoot}>
+        {hasPermission && device ? (
+          <Camera
+            ref={cameraRef}
+            style={StyleSheet.absoluteFill}
+            device={device}
+            isActive={mode === 'camera'}
+            photo
+            torch={torchEnabled && device.hasTorch ? 'on' : 'off'}
+          />
+        ) : (
+          <View style={styles.cameraUnavailable}>
+            <Icon name="camera-outline" size={42} color="#fff" />
+            <Text style={styles.cameraUnavailableText}>
+              Camera chưa sẵn sàng
+            </Text>
+          </View>
+        )}
+
+        <View pointerEvents="none" style={styles.bottomShade} />
+
+        <SafeAreaView style={styles.cameraOverlay}>
+          <View style={styles.cameraHeader}>
+            <TouchableOpacity style={styles.closeCameraButton} onPress={closeCamera}>
+              <Icon name="close" size={26} color="#fff" />
+            </TouchableOpacity>
+            <View style={styles.cameraTitleWrap}>
+              <Text style={styles.cameraTitle}>Nhận diện vật thể</Text>
+              <Text style={styles.cameraSubtitle}>
+                Chụp ảnh để nhận diện và học từ vựng
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.flashControl}
+              onPress={() => setTorchEnabled(current => !current)}
+              disabled={!device?.hasTorch}
+            >
+              <Icon
+                name={torchEnabled ? 'flash' : 'flash-outline'}
+                size={28}
+                color="#fff"
+              />
+              <Text style={styles.flashText}>Flash</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.cameraActions}>
+            <TouchableOpacity
+              style={styles.sideAction}
+              onPress={pickImageFromLibrary}
+            >
+              <Icon name="image-outline" size={31} color="#fff" />
+              <Text style={styles.sideActionText}>Thư viện</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Chụp ảnh"
+              disabled={loading || !device}
+              style={styles.shutterOuter}
+              onPress={takePhoto}
+            >
+              <View style={styles.shutterInner} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.sideAction}
+              onPress={() =>
+                setCameraPosition(current =>
+                  current === 'back' ? 'front' : 'back',
+                )
+              }
+            >
+              <Icon name="sync-outline" size={33} color="#fff" />
+              <Text style={styles.sideActionText}>Đổi camera</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+
+        {loading && (
+          <View style={styles.fullLoading}>
+            <ActivityIndicator color="#fff" />
+            <Text style={styles.fullLoadingText}>Đang nhận diện...</Text>
+          </View>
+        )}
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
@@ -286,7 +439,7 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
           <Icon name="chevron-back" size={22} color="#1f2937" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Kết quả nhận diện</Text>
-        <TouchableOpacity style={styles.iconButton} onPress={takePhoto}>
+        <TouchableOpacity style={styles.iconButton} onPress={openCamera}>
           <Icon name="camera-outline" size={22} color="#1f2937" />
         </TouchableOpacity>
       </View>
@@ -342,16 +495,9 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
           )}
         </View>
 
-        {labels.length === 0 && !loading ? (
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={styles.libraryButton}
-              onPress={pickImageFromLibrary}
-            >
-              <Icon name="image" size={18} color="#0f8bff" />
-              <Text style={styles.libraryButtonText}>Chọn ảnh</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.captureButton} onPress={takePhoto}>
+        {items.length === 0 && !loading ? (
+          <View style={styles.singleActionWrap}>
+            <TouchableOpacity style={styles.captureButtonWide} onPress={openCamera}>
               <Icon name="camera" size={18} color="#fff" />
               <Text style={styles.captureButtonText}>Chụp ảnh</Text>
             </TouchableOpacity>
@@ -367,39 +513,45 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
             </View>
 
             <View style={styles.wordsList}>
-              {labels.map(item => {
-                const selected = selectedLabels.includes(item.label);
+              {items.map((item, index) => {
+                const selected = selectedWords.includes(item.word);
 
                 return (
                   <TouchableOpacity
-                    key={item.label}
+                    key={`${item.label}-${item.word}-${index}`}
                     activeOpacity={0.85}
-                    style={[
-                      styles.wordCard,
-                      selected && styles.wordCardSelected,
-                    ]}
-                    onPress={() => toggleLabel(item.label)}
+                    style={[styles.wordCard, selected && styles.wordCardSelected]}
+                    onPress={() => toggleWord(item.word)}
                   >
                     <View style={styles.radioWrap}>
-                      <View
-                        style={[
-                          styles.radio,
-                          selected && styles.radioSelected,
-                        ]}
-                      >
+                      <View style={[styles.radio, selected && styles.radioSelected]}>
                         {selected && <View style={styles.radioDot} />}
                       </View>
                     </View>
 
                     <View style={styles.wordInfo}>
-                      <Text style={styles.word}>{item.label}</Text>
+                      <Text style={styles.word}>{item.word}</Text>
                       <Text style={styles.meaning}>
-                        /{item.label}/ - {getMeaning(item.label)}
+                        {formatIpa(item.ipa) ? `${formatIpa(item.ipa)} - ` : ''}
+                        {item.vietnameseMeaning || 'Đang cập nhật nghĩa'}
                       </Text>
+                      {!!item.example && (
+                        <Text style={styles.example} numberOfLines={3}>
+                          {item.example}
+                        </Text>
+                      )}
                       <View style={styles.metaRow}>
                         <Text style={styles.confidenceText}>
                           Độ tin cậy {Math.round(item.confidence * 100)}%
                         </Text>
+                        {!!item.partOfSpeech && (
+                          <Text style={styles.partOfSpeechText}>
+                            {item.partOfSpeech}
+                          </Text>
+                        )}
+                        {!!item.cefr && (
+                          <Text style={styles.partOfSpeechText}>{item.cefr}</Text>
+                        )}
                         <TouchableOpacity style={styles.smallTopicButton}>
                           <Text style={styles.smallTopicText}>Chọn chủ đề</Text>
                         </TouchableOpacity>
@@ -408,24 +560,24 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
 
                     <TouchableOpacity
                       accessibilityRole="button"
-                      accessibilityLabel={`Phát âm ${item.label}`}
+                      accessibilityLabel={`Phát âm ${item.word}`}
                       onPress={(event: GestureResponderEvent) => {
                         event.stopPropagation();
-                        playPronunciation(item.label);
+                        playPronunciation(item.word, item.audioUrl);
                       }}
                       style={[
                         styles.soundButton,
-                        playingLabel === item.label && styles.soundButtonPlaying,
+                        playingWord === item.word && styles.soundButtonPlaying,
                       ]}
                     >
                       <Icon
                         name={
-                          playingLabel === item.label
+                          playingWord === item.word
                             ? 'volume-high'
                             : 'volume-medium-outline'
                         }
                         size={20}
-                        color={playingLabel === item.label ? '#fff' : '#0f8bff'}
+                        color={playingWord === item.word ? '#fff' : '#0f8bff'}
                       />
                     </TouchableOpacity>
                   </TouchableOpacity>
@@ -436,7 +588,7 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
         )}
       </ScrollView>
 
-      {labels.length > 0 && (
+      {items.length > 0 && (
         <View style={styles.footer}>
           <TouchableOpacity
             style={styles.secondaryButton}
@@ -459,6 +611,129 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
 };
 
 const styles = StyleSheet.create({
+  cameraRoot: {
+    flex: 1,
+    backgroundColor: '#050505',
+  },
+  cameraUnavailable: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#111827',
+  },
+  cameraUnavailableText: {
+    marginTop: 10,
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  bottomShade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 180,
+    backgroundColor: 'rgba(0, 0, 0, 0.36)',
+  },
+  cameraOverlay: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  cameraHeader: {
+    minHeight: 86,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingTop: 12,
+  },
+  closeCameraButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+  },
+  flashControl: {
+    minWidth: 64,
+    minHeight: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  flashText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  cameraTitleWrap: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingTop: 2,
+  },
+  cameraTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  cameraSubtitle: {
+    marginTop: 5,
+    color: 'rgba(255, 255, 255, 0.78)',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  cameraActions: {
+    minHeight: 148,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 46,
+    paddingBottom: 20,
+  },
+  sideAction: {
+    width: 78,
+    minHeight: 68,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  sideActionText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  shutterOuter: {
+    width: 86,
+    height: 86,
+    borderRadius: 43,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 4,
+    borderColor: '#fff',
+  },
+  shutterInner: {
+    width: 66,
+    height: 66,
+    borderRadius: 33,
+    backgroundColor: '#fff',
+  },
+  fullLoading: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+  },
+  fullLoadingText: {
+    marginTop: 10,
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
+  },
   safeArea: {
     flex: 1,
     backgroundColor: '#f6f8fb',
@@ -544,29 +819,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  libraryButton: {
-    flex: 1,
-    height: 48,
-    flexDirection: 'row',
+  singleActionWrap: {
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#0f8bff',
-    borderRadius: 8,
-    backgroundColor: '#fff',
   },
-  libraryButtonText: {
-    color: '#0f8bff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  captureButton: {
-    flex: 1,
+  captureButtonWide: {
+    width: '100%',
     height: 48,
     flexDirection: 'row',
     alignItems: 'center',
@@ -608,7 +865,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   wordCard: {
-    minHeight: 92,
+    minHeight: 108,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
@@ -658,6 +915,12 @@ const styles = StyleSheet.create({
   meaning: {
     color: '#64748b',
     fontSize: 12,
+    marginBottom: 6,
+  },
+  example: {
+    color: '#334155',
+    fontSize: 12,
+    fontStyle: 'italic',
     marginBottom: 8,
   },
   metaRow: {
@@ -669,6 +932,11 @@ const styles = StyleSheet.create({
   confidenceText: {
     color: '#94a3b8',
     fontSize: 11,
+  },
+  partOfSpeechText: {
+    color: '#64748b',
+    fontSize: 11,
+    fontWeight: '700',
   },
   smallTopicButton: {
     borderRadius: 12,

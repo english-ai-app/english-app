@@ -12,7 +12,11 @@ import BottomNav, { BottomTabKey } from '../components/BottomNav';
 
 export type AppScreenKey =
   | BottomTabKey
+  | 'addWord'
   | 'camera'
+  | 'dictionary'
+  | 'translate'
+  | 'manualAdd'
   | 'profile'
   | 'notifications'
   | 'challenge'
@@ -21,10 +25,15 @@ export type AppScreenKey =
 
 type HomeScreenProps = {
   onOpenCamera?: () => void;
+  onOpenAddWord?: () => void;
   onNavigate?: (screen: AppScreenKey) => void;
 };
 
-const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenCamera, onNavigate }) => {
+const HomeScreen: React.FC<HomeScreenProps> = ({
+  onOpenCamera,
+  onOpenAddWord,
+  onNavigate,
+}) => {
   const openCamera = (): void => {
     if (onOpenCamera) {
       onOpenCamera();
@@ -90,7 +99,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenCamera, onNavigate }) => 
 
         <BottomNav
           activeTab="home"
-          onCameraPress={openCamera}
+          onAddPress={onOpenAddWord ?? (() => onNavigate?.('addWord'))}
           onTabPress={onNavigate}
         />
       </View>

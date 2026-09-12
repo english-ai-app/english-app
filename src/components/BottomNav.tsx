@@ -6,7 +6,8 @@ export type BottomTabKey = 'home' | 'review' | 'course' | 'community';
 
 type BottomNavProps = {
   activeTab?: BottomTabKey;
-  onCameraPress?: () => void;
+  addActive?: boolean;
+  onAddPress?: () => void;
   onTabPress?: (tab: BottomTabKey) => void;
 };
 
@@ -39,14 +40,15 @@ const tabs = [
 
 const BottomNav: React.FC<BottomNavProps> = ({
   activeTab = 'home',
-  onCameraPress,
+  addActive = false,
+  onAddPress,
   onTabPress,
 }) => {
   const leftTabs = tabs.slice(0, 2);
   const rightTabs = tabs.slice(2);
 
   const renderTab = (tab: (typeof tabs)[number]) => {
-    const active = activeTab === tab.key;
+    const active = !addActive && activeTab === tab.key;
 
     return (
       <TouchableOpacity
@@ -75,13 +77,19 @@ const BottomNav: React.FC<BottomNavProps> = ({
 
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={onCameraPress}
-          style={styles.cameraItem}
+          onPress={onAddPress}
+          style={styles.tabItem}
         >
-          <View style={styles.cameraCircle}>
-            <Icon name="camera" size={21} style={styles.cameraIcon} />
+          <View style={[styles.iconCircle, addActive && styles.iconActive]}>
+            <Icon
+              name={addActive ? 'add' : 'add-outline'}
+              size={20}
+              style={[styles.iconText, addActive && styles.iconTextActive]}
+            />
           </View>
-          <Text style={styles.cameraLabel}>Quét</Text>
+          <Text style={[styles.label, addActive && styles.labelActive]}>
+            Thêm
+          </Text>
         </TouchableOpacity>
 
         {rightTabs.map(renderTab)}
@@ -144,34 +152,6 @@ const styles = StyleSheet.create({
   },
   labelActive: {
     color: '#1ca8ff',
-    fontWeight: '700',
-  },
-  cameraItem: {
-    flex: 1,
-    alignItems: 'center',
-    transform: [{ translateY: -10 }],
-  },
-  cameraCircle: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 3,
-    backgroundColor: '#1ca8ff',
-    shadowColor: '#1ca8ff',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.24,
-    shadowRadius: 10,
-    elevation: 7,
-  },
-  cameraIcon: {
-    color: '#ffffff',
-    fontSize: 21,
-  },
-  cameraLabel: {
-    color: '#1ca8ff',
-    fontSize: 11,
     fontWeight: '700',
   },
 });

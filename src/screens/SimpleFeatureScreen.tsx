@@ -10,7 +10,7 @@ type SimpleFeatureScreenProps = {
   icon: string;
   activeTab?: BottomTabKey;
   onBack?: () => void;
-  onOpenCamera?: () => void;
+  onOpenAddWord?: () => void;
   onNavigate?: (screen: AppScreenKey) => void;
 };
 
@@ -20,7 +20,7 @@ const SimpleFeatureScreen: React.FC<SimpleFeatureScreenProps> = ({
   icon,
   activeTab = 'home',
   onBack,
-  onOpenCamera,
+  onOpenAddWord,
   onNavigate,
 }) => {
   return (
@@ -44,7 +44,7 @@ const SimpleFeatureScreen: React.FC<SimpleFeatureScreenProps> = ({
 
         <BottomNav
           activeTab={activeTab}
-          onCameraPress={onOpenCamera}
+          onAddPress={onOpenAddWord}
           onTabPress={onNavigate}
         />
       </View>

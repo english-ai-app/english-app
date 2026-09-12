@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import HomeScreen, { AppScreenKey } from './src/screens/HomeScreen';
 import CameraScreen from './src/screens/CameraScreen';
 import SimpleFeatureScreen from './src/screens/SimpleFeatureScreen';
+import AddWordScreen from './src/screens/AddWordScreen';
 import { BottomTabKey } from './src/components/BottomNav';
 
 const screenConfig: Record<
-  Exclude<AppScreenKey, 'home' | 'camera'>,
+  Exclude<AppScreenKey, 'home' | 'addWord' | 'camera'>,
   {
     title: string;
     subtitle: string;
@@ -59,6 +60,24 @@ const screenConfig: Record<
     icon: '⚡',
     activeTab: 'review',
   },
+  dictionary: {
+    title: 'Từ điển',
+    subtitle: 'Tra cứu nghĩa, phát âm và ví dụ chi tiết cho từ vựng bạn muốn học.',
+    icon: '🔎',
+    activeTab: 'review',
+  },
+  translate: {
+    title: 'Dịch',
+    subtitle: 'Dịch nhanh câu văn hoặc đoạn văn ngắn để thêm vào bộ từ của bạn.',
+    icon: '🌐',
+    activeTab: 'review',
+  },
+  manualAdd: {
+    title: 'Thêm thủ công',
+    subtitle: 'Tự nhập từ vựng, nghĩa và ghi chú cá nhân theo cách bạn muốn.',
+    icon: '＋',
+    activeTab: 'review',
+  },
 };
 
 const App: React.FC = () => {
@@ -66,6 +85,15 @@ const App: React.FC = () => {
 
   if (screen === 'camera') {
     return <CameraScreen autoOpen onBack={() => setScreen('home')} />;
+  }
+
+  if (screen === 'addWord') {
+    return (
+      <AddWordScreen
+        onClose={() => setScreen('home')}
+        onNavigate={setScreen}
+      />
+    );
   }
 
   if (screen !== 'home') {
@@ -78,7 +106,7 @@ const App: React.FC = () => {
         icon={config.icon}
         activeTab={config.activeTab}
         onBack={() => setScreen('home')}
-        onOpenCamera={() => setScreen('camera')}
+        onOpenAddWord={() => setScreen('addWord')}
         onNavigate={setScreen}
       />
     );
@@ -87,6 +115,7 @@ const App: React.FC = () => {
   return (
     <HomeScreen
       onOpenCamera={() => setScreen('camera')}
+      onOpenAddWord={() => setScreen('addWord')}
       onNavigate={setScreen}
     />
   );
