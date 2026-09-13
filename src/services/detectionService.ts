@@ -34,6 +34,7 @@ type DetectApiResponse = {
   collectionId?: number | null;
   source?: string;
   tempImageKey?: string | null;
+  labels?: DetectedLabel[];
   items?: DetectionVocabularyItem[];
 };
 
@@ -51,6 +52,8 @@ type DetectImagePayload = {
   base64?: string;
   type?: string;
   fileName?: string;
+  imageWidth?: number;
+  imageHeight?: number;
   collectionId?: number;
   tempImageKey?: string;
 };
@@ -62,6 +65,39 @@ export type DetectImageResult = {
   items: DetectionVocabularyItem[];
   labels: DetectedLabel[];
   message?: string;
+};
+
+const normalizeBoundingBox = (
+  box?: BoundingBox,
+  imageWidth?: number,
+  imageHeight?: number,
+): BoundingBox | undefined => {
+  if (!box) return undefined;
+
+  const maxValue = Math.max(box.x, box.y, box.width, box.height);
+  if (maxValue <= 1) {
+    return box;
+  }
+
+  if (box.x + box.width <= 100 && box.y + box.height <= 100) {
+    return {
+      x: box.x / 100,
+      y: box.y / 100,
+      width: box.width / 100,
+      height: box.height / 100,
+    };
+  }
+
+  if (imageWidth && imageHeight) {
+    return {
+      x: box.x / imageWidth,
+      y: box.y / imageHeight,
+      width: box.width / imageWidth,
+      height: box.height / imageHeight,
+    };
+  }
+
+  return box;
 };
 
 export const detectObjectFromImage = async (
@@ -87,16 +123,35 @@ export const detectObjectFromImage = async (
       data: requestBody,
     });
     const items = Array.isArray(data?.items) ? data.items : [];
+    const labels = Array.isArray(data?.labels)
+      ? data.labels
+      : items.map(item => ({
+          label: item.label,
+          confidence: item.confidence,
+          boundingBox: item.boundingBox,
+        }));
+    const normalizedItems = items.map(item => ({
+      ...item,
+      boundingBox: normalizeBoundingBox(
+        item.boundingBox,
+        payload.imageWidth,
+        payload.imageHeight,
+      ),
+    }));
 
     return {
       collectionId: data?.collectionId,
       source: data?.source,
       tempImageKey: data?.tempImageKey,
-      items,
-      labels: items.map(item => ({
+      items: normalizedItems,
+      labels: labels.map(item => ({
         label: item.label,
         confidence: item.confidence,
-        boundingBox: item.boundingBox,
+        boundingBox: normalizeBoundingBox(
+          item.boundingBox,
+          payload.imageWidth,
+          payload.imageHeight,
+        ),
       })),
       message: data?.message,
     };
