@@ -3,6 +3,11 @@ import HomeScreen, { AppScreenKey } from './src/screens/HomeScreen';
 import CameraScreen from './src/screens/CameraScreen';
 import SimpleFeatureScreen from './src/screens/SimpleFeatureScreen';
 import AddWordScreen from './src/screens/AddWordScreen';
+import WelcomeScreen from './src/screens/WelcomeScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import RegisterScreen from './src/screens/RegisterScreen';
+import LoadingScreen from './src/screens/LoadingScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
 import { BottomTabKey } from './src/components/BottomNav';
 
 const screenConfig: Record<
@@ -36,6 +41,7 @@ const screenConfig: Record<
     title: 'Hồ sơ',
     subtitle: 'Theo dõi tiến độ, mục tiêu và thông tin học tập cá nhân của bạn.',
     icon: '👤',
+    activeTab: undefined,
   },
   notifications: {
     title: 'Thông báo',
@@ -80,8 +86,45 @@ const screenConfig: Record<
   },
 };
 
+type AuthScreenKey = 'welcome' | 'login' | 'register' | 'loading' | 'app';
+
 const App: React.FC = () => {
+  const [authScreen, setAuthScreen] = useState<AuthScreenKey>('welcome');
   const [screen, setScreen] = useState<AppScreenKey>('home');
+
+  if (authScreen === 'welcome') {
+    return (
+      <WelcomeScreen
+        onEmailLogin={() => setAuthScreen('login')}
+        onLogin={() => setAuthScreen('loading')}
+        onRegister={() => setAuthScreen('register')}
+      />
+    );
+  }
+
+  if (authScreen === 'login') {
+    return (
+      <LoginScreen
+        onBack={() => setAuthScreen('welcome')}
+        onLogin={() => setAuthScreen('loading')}
+        onRegister={() => setAuthScreen('register')}
+      />
+    );
+  }
+
+  if (authScreen === 'register') {
+    return (
+      <RegisterScreen
+        onBack={() => setAuthScreen('welcome')}
+        onLogin={() => setAuthScreen('login')}
+        onRegister={() => setAuthScreen('loading')}
+      />
+    );
+  }
+
+  if (authScreen === 'loading') {
+    return <LoadingScreen onFinish={() => setAuthScreen('app')} />;
+  }
 
   if (screen === 'camera') {
     return <CameraScreen autoOpen onBack={() => setScreen('home')} />;
@@ -92,6 +135,20 @@ const App: React.FC = () => {
       <AddWordScreen
         onClose={() => setScreen('home')}
         onNavigate={setScreen}
+      />
+    );
+  }
+
+  if (screen === 'profile') {
+    return (
+      <ProfileScreen
+        onBack={() => setScreen('home')}
+        onOpenAddWord={() => setScreen('addWord')}
+        onNavigate={setScreen}
+        onLogout={() => {
+          setScreen('home');
+          setAuthScreen('login');
+        }}
       />
     );
   }

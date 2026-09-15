@@ -5,7 +5,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 export type BottomTabKey = 'home' | 'review' | 'course' | 'community';
 
 type BottomNavProps = {
-  activeTab?: BottomTabKey;
+  activeTab?: BottomTabKey | null;
   addActive?: boolean;
   onAddPress?: () => void;
   onTabPress?: (tab: BottomTabKey) => void;
