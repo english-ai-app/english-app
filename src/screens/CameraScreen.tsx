@@ -23,6 +23,17 @@ import {
   useCameraPermission,
 } from 'react-native-vision-camera';
 import {
+  normalizeBox,
+  readImageAsBase64,
+  toPercent,
+} from '../common/DataUtils';
+import { formatIpa, getItemKey } from '../common/DataUtils';
+import {
+  newTopicIconOptions,
+  TopicFilterKey,
+  topicFilterOptions,
+} from '../common/config';
+import {
   DetectedLabel,
   DetectionVocabularyItem,
   detectObjectFromImage,
@@ -33,55 +44,6 @@ import {
   VocabularyTopic,
   TopicVisibility,
 } from '../services/topicService';
-
-const toPercent = (value: number): `${number}%` => {
-  const clamped = Math.min(Math.max(value, 0), 1);
-  return `${clamped * 100}%`;
-};
-
-const normalizeBox = (
-  box: NonNullable<DetectedLabel['boundingBox']>,
-): NonNullable<DetectedLabel['boundingBox']> => {
-  const maxValue = Math.max(box.x, box.y, box.width, box.height);
-
-  if (maxValue <= 1) {
-    return box;
-  }
-
-  return {
-    x: box.x / 100,
-    y: box.y / 100,
-    width: box.width / 100,
-    height: box.height / 100,
-  };
-};
-
-const readImageAsBase64 = async (uri: string): Promise<string> => {
-  if (uri.startsWith('data:')) {
-    return uri.split(',')[1] || '';
-  }
-
-  const filePath = decodeURIComponent(uri.replace('file://', ''));
-
-  try {
-    return await RNFS.readFile(filePath, 'base64');
-  } catch (error) {
-    const stat = await RNFS.stat(uri);
-    const originalPath = (stat as { originalFilepath?: string }).originalFilepath;
-    if (originalPath) {
-      return RNFS.readFile(originalPath, 'base64');
-    }
-    throw error;
-  }
-};
-
-const formatIpa = (ipa?: string): string => {
-  if (!ipa) return '';
-  return ipa.startsWith('/') ? ipa : `/${ipa}/`;
-};
-
-const getItemKey = (item: DetectionVocabularyItem, index?: number): string =>
-  `${item.label}-${item.word}-${index ?? 0}`;
 
 type Size = {
   width: number;
@@ -100,27 +62,6 @@ type TopicTarget =
       item: DetectionVocabularyItem;
     };
 
-const topicFilterOptions = [
-  { key: 'suggested', label: 'Gợi ý' },
-  { key: 'all', label: 'Tất cả' },
-  { key: 'used', label: 'Đã dùng' },
-  { key: 'favorite', label: 'Yêu thích' },
-] as const;
-
-const newTopicIconOptions = [
-  { icon: 'home', color: '#0f8bff' },
-  { icon: 'bed', color: '#2563eb' },
-  { icon: 'briefcase', color: '#f97316' },
-  { icon: 'book', color: '#0ea5e9' },
-  { icon: 'game-controller', color: '#2563eb' },
-  { icon: 'leaf', color: '#22c55e' },
-  { icon: 'heart', color: '#ef4444' },
-  { icon: 'airplane', color: '#0ea5e9' },
-  { icon: 'restaurant', color: '#f43f1f' },
-  { icon: 'school', color: '#7c3aed' },
-  { icon: 'ellipsis-horizontal', color: '#1d4ed8' },
-];
-
 type CameraScreenProps = {
   autoOpen?: boolean;
   onBack?: () => void;
@@ -135,6 +76,7 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
   const [cameraPosition, setCameraPosition] = useState<CameraPosition>('back');
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageDataUri, setImageDataUri] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState<Size | null>(null);
   const [previewSize, setPreviewSize] = useState<Size | null>(null);
   const [loading, setLoading] = useState(false);
@@ -145,7 +87,8 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
   const [topics, setTopics] = useState<VocabularyTopic[]>([]);
   const [topicsLoading, setTopicsLoading] = useState(false);
   const [topicSearch, setTopicSearch] = useState('');
-  const [topicFilter, setTopicFilter] = useState<'suggested' | 'all' | 'used' | 'favorite'>('suggested');
+  const [topicFilter, setTopicFilter] =
+    useState<TopicFilterKey>('suggested');
   const [topicTarget, setTopicTarget] = useState<TopicTarget>({ type: 'all' });
   const [draftTopicIds, setDraftTopicIds] = useState<string[]>([]);
   const [allTopicIds, setAllTopicIds] = useState<string[]>([]);
@@ -159,6 +102,7 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
     useState<TopicVisibility>('private');
 
   const device = useCameraDevice(cameraPosition);
+  const displayImageUri = imageDataUri || imageUri;
   const selectedCount = selectedWords.length;
   const boxedLabels = useMemo(
     () => labels.filter(item => item.boundingBox).slice(0, 12),
@@ -251,6 +195,9 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
       height?: number;
     }): Promise<void> => {
       setImageUri(payload.uri);
+      setImageDataUri(
+        `data:${payload.type || 'image/jpeg'};base64,${payload.base64}`,
+      );
       setImageSize({
         width: payload.width || 1,
         height: payload.height || 1,
@@ -324,8 +271,8 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
 
     setLoading(true);
     try {
-      const photo = await cameraRef.current.takePhoto({
-        flash: torchEnabled && device?.hasFlash ? 'on' : 'off',
+      const photo = await cameraRef.current.takeSnapshot({
+        quality: 70,
       });
       const uri = photo.path.startsWith('file://')
         ? photo.path
@@ -352,9 +299,9 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
     try {
       const result = await launchImageLibrary({
         mediaType: 'photo',
-        quality: 0.5,
-        maxWidth: 1024,
-        maxHeight: 1024,
+        quality: 0.4,
+        maxWidth: 768,
+        maxHeight: 768,
         includeBase64: true,
         selectionLimit: 1,
       });
@@ -673,10 +620,10 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
         >
           <View style={styles.topicObjectCard}>
             <View style={styles.topicPreviewThumb}>
-              {imageUri ? (
+              {displayImageUri ? (
                 <Image
-                  resizeMode={topicTarget.type === 'all' ? 'contain' : 'cover'}
-                  source={{ uri: imageUri }}
+                  resizeMode="cover"
+                  source={{ uri: displayImageUri }}
                   style={getTopicPreviewImageStyle()}
                 />
               ) : (
@@ -940,6 +887,8 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
             device={device}
             isActive={mode === 'camera'}
             photo
+            video
+            photoQualityBalance="speed"
             torch={torchEnabled && device.hasTorch ? 'on' : 'off'}
           />
         ) : (
@@ -1041,10 +990,10 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
             setPreviewSize({ width, height });
           }}
         >
-          {imageUri ? (
+          {displayImageUri ? (
             <Image
               resizeMode="contain"
-              source={{ uri: imageUri }}
+              source={{ uri: displayImageUri }}
               style={styles.previewImage}
             />
           ) : (
@@ -1054,7 +1003,7 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
             </View>
           )}
 
-          {imageUri &&
+          {displayImageUri &&
             boxedLabels.map((item, index) => {
               const box = item.boundingBox;
               if (!box) return null;
@@ -2019,4 +1968,3 @@ const styles = StyleSheet.create({
 });
 
 export default CameraScreen;
-
