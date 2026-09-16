@@ -2,6 +2,7 @@
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   GestureResponderEvent,
   Image,
   Modal,
@@ -76,7 +77,6 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
   const [cameraPosition, setCameraPosition] = useState<CameraPosition>('back');
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
-  const [imageDataUri, setImageDataUri] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState<Size | null>(null);
   const [previewSize, setPreviewSize] = useState<Size | null>(null);
   const [loading, setLoading] = useState(false);
@@ -102,7 +102,7 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
     useState<TopicVisibility>('private');
 
   const device = useCameraDevice(cameraPosition);
-  const displayImageUri = imageDataUri || imageUri;
+  const displayImageUri = imageUri;
   const selectedCount = selectedWords.length;
   const boxedLabels = useMemo(
     () => labels.filter(item => item.boundingBox).slice(0, 12),
@@ -133,6 +133,24 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
     });
   }, [topicFilter, topicSearch, topics]);
 
+  const createCachedImageUri = async (
+    base64: string,
+    type?: string,
+    fileName?: string,
+  ): Promise<string> => {
+    const extensionFromType = type?.split('/')[1]?.split(';')[0];
+    const extensionFromName = fileName?.split('.').pop();
+    const extension = (
+      extensionFromType ||
+      extensionFromName ||
+      'jpg'
+    ).replace(/[^a-zA-Z0-9]/g, '');
+    const path = `${RNFS.CachesDirectoryPath}/detection-${Date.now()}.${extension}`;
+
+    await RNFS.writeFile(path, base64, 'base64');
+    return `file://${path}`;
+  };
+
   useEffect(() => {
     if (!hasPermission) {
       requestPermission();
@@ -148,6 +166,31 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
       soundRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        if (loading) {
+          return true;
+        }
+
+        if (mode === 'createTopic') {
+          setMode('topicPicker');
+          return true;
+        }
+
+        if (mode === 'topicPicker') {
+          setMode('result');
+          return true;
+        }
+
+        return false;
+      },
+    );
+
+    return () => subscription.remove();
+  }, [loading, mode]);
 
   useEffect(() => {
     let active = true;
@@ -195,9 +238,6 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
       height?: number;
     }): Promise<void> => {
       setImageUri(payload.uri);
-      setImageDataUri(
-        `data:${payload.type || 'image/jpeg'};base64,${payload.base64}`,
-      );
       setImageSize({
         width: payload.width || 1,
         height: payload.height || 1,
@@ -239,9 +279,14 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
       }
 
       const base64 = asset.base64 || (await readImageAsBase64(asset.uri));
+      const cachedUri = await createCachedImageUri(
+        base64,
+        asset.type,
+        asset.fileName,
+      );
 
       await runDetection({
-        uri: asset.uri,
+        uri: cachedUri,
         base64,
         type: asset.type,
         fileName: asset.fileName,
@@ -302,7 +347,7 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
         quality: 0.4,
         maxWidth: 768,
         maxHeight: 768,
-        includeBase64: true,
+        includeBase64: false,
         selectionLimit: 1,
       });
 
@@ -439,6 +484,7 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
 
   const openTopicPicker = useCallback(
     (target: TopicTarget): void => {
+      if (loading) return;
       if (target.type === 'all' && hasIndividualTopics) return;
 
       setTopicTarget(target);
@@ -451,10 +497,12 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
       );
       setMode('topicPicker');
     },
-    [allTopicIds, hasIndividualTopics, itemTopicIds],
+    [allTopicIds, hasIndividualTopics, itemTopicIds, loading],
   );
 
   const toggleDraftTopic = (topicId: string): void => {
+    if (loading) return;
+
     setDraftTopicIds(current =>
       current.includes(topicId)
         ? current.filter(id => id !== topicId)
@@ -463,6 +511,8 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
   };
 
   const confirmTopics = (): void => {
+    if (loading) return;
+
     if (topicTarget.type === 'all') {
       setAllTopicIds(draftTopicIds);
     } else {
@@ -477,6 +527,8 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
   };
 
   const removeTopic = (target: TopicTarget, topicId: string): void => {
+    if (loading) return;
+
     if (target.type === 'all') {
       setAllTopicIds(current => current.filter(id => id !== topicId));
       return;
@@ -491,6 +543,8 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
   };
 
   const createTopic = async (): Promise<void> => {
+    if (loading) return;
+
     const name = newTopicName.trim();
     if (!name) {
       Alert.alert('Thiếu tên chủ đề', 'Vui lòng nhập tên chủ đề.');
@@ -543,7 +597,11 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
           <TouchableOpacity
             key={topic.id}
             activeOpacity={0.8}
-            style={styles.selectedTopicChip}
+            disabled={loading}
+            style={[
+              styles.selectedTopicChip,
+              loading && styles.disabledTouchable,
+            ]}
             onPress={event => event.stopPropagation()}
           >
             <Text numberOfLines={1} style={styles.selectedTopicText}>
@@ -552,11 +610,15 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
             <TouchableOpacity
               accessibilityRole="button"
               accessibilityLabel={`Bỏ chủ đề ${topic.name}`}
+              disabled={loading}
               onPress={event => {
                 event.stopPropagation();
                 removeTopic(target, topic.id);
               }}
-              style={styles.selectedTopicRemove}
+              style={[
+                styles.selectedTopicRemove,
+                loading && styles.disabledTouchable,
+              ]}
             >
               <Icon name="close" size={12} color="#2563eb" />
             </TouchableOpacity>
@@ -565,7 +627,11 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
         {overflowTopics.length > 0 && (
           <TouchableOpacity
             activeOpacity={0.8}
-            style={styles.moreTopicChip}
+            disabled={loading}
+            style={[
+              styles.moreTopicChip,
+              loading && styles.disabledTouchable,
+            ]}
             onPress={event => {
               event.stopPropagation();
               setHiddenTopics(overflowTopics);
@@ -605,7 +671,11 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.topicScreenHeader}>
           <TouchableOpacity
-            style={styles.topicBackButton}
+            disabled={loading}
+            style={[
+              styles.topicBackButton,
+              loading && styles.disabledTouchable,
+            ]}
             onPress={() => setMode('result')}
           >
             <Icon name="chevron-back" size={24} color="#0f63ff" />
@@ -671,9 +741,11 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
                 <TouchableOpacity
                   key={option.key}
                   activeOpacity={0.85}
+                  disabled={loading}
                   style={[
                     styles.topicFilterButton,
                     active && styles.topicFilterButtonActive,
+                    loading && styles.disabledTouchable,
                   ]}
                   onPress={() => setTopicFilter(option.key)}
                 >
@@ -700,7 +772,11 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
                   <TouchableOpacity
                     key={topic.id}
                     activeOpacity={0.86}
-                    style={styles.topicOption}
+                    disabled={loading}
+                    style={[
+                      styles.topicOption,
+                      loading && styles.disabledTouchable,
+                    ]}
                     onPress={() => toggleDraftTopic(topic.id)}
                   >
                     <View
@@ -733,7 +809,11 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
 
           <TouchableOpacity
             activeOpacity={0.86}
-            style={styles.createTopicButton}
+            disabled={loading}
+            style={[
+              styles.createTopicButton,
+              loading && styles.disabledTouchable,
+            ]}
             onPress={() => setMode('createTopic')}
           >
             <Icon name="add" size={20} color="#0f63ff" />
@@ -744,7 +824,11 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
         <View style={styles.topicFooter}>
           <TouchableOpacity
             activeOpacity={0.9}
-            style={styles.confirmTopicButton}
+            disabled={loading}
+            style={[
+              styles.confirmTopicButton,
+              loading && styles.confirmTopicButtonDisabled,
+            ]}
             onPress={confirmTopics}
           >
             <Text style={styles.confirmTopicText}>Xác nhận</Text>
@@ -759,7 +843,11 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.topicScreenHeader}>
           <TouchableOpacity
-            style={styles.topicBackButton}
+            disabled={loading || topicsLoading}
+            style={[
+              styles.topicBackButton,
+              (loading || topicsLoading) && styles.disabledTouchable,
+            ]}
             onPress={() => setMode('topicPicker')}
           >
             <Icon name="chevron-back" size={24} color="#0f63ff" />
@@ -799,9 +887,11 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
                 <TouchableOpacity
                   key={option.icon}
                   activeOpacity={0.84}
+                  disabled={loading || topicsLoading}
                   style={[
                     styles.iconChoice,
                     active && styles.iconChoiceActive,
+                    (loading || topicsLoading) && styles.disabledTouchable,
                   ]}
                   onPress={() => {
                     setNewTopicIcon(option.icon);
@@ -834,9 +924,11 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
               <TouchableOpacity
                 key={option.key}
                 activeOpacity={0.86}
+                disabled={loading || topicsLoading}
                 style={[
                   styles.visibilityOption,
                   active && styles.visibilityOptionActive,
+                  (loading || topicsLoading) && styles.disabledTouchable,
                 ]}
                 onPress={() => setNewTopicVisibility(option.key)}
               >
@@ -861,10 +953,10 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
         <View style={styles.topicFooter}>
           <TouchableOpacity
             activeOpacity={0.9}
-            disabled={topicsLoading}
+            disabled={loading || topicsLoading}
             style={[
               styles.confirmTopicButton,
-              topicsLoading && styles.confirmTopicButtonDisabled,
+              (loading || topicsLoading) && styles.confirmTopicButtonDisabled,
             ]}
             onPress={createTopic}
           >
@@ -904,7 +996,14 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
 
         <SafeAreaView style={styles.cameraOverlay}>
           <View style={styles.cameraHeader}>
-            <TouchableOpacity style={styles.closeCameraButton} onPress={closeCamera}>
+            <TouchableOpacity
+              disabled={loading}
+              style={[
+                styles.closeCameraButton,
+                loading && styles.disabledTouchable,
+              ]}
+              onPress={closeCamera}
+            >
               <Icon name="close" size={26} color="#fff" />
             </TouchableOpacity>
             <View style={styles.cameraTitleWrap}>
@@ -916,7 +1015,7 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
             <TouchableOpacity
               style={styles.flashControl}
               onPress={() => setTorchEnabled(current => !current)}
-              disabled={!device?.hasTorch}
+              disabled={loading || !device?.hasTorch}
             >
               <Icon
                 name={torchEnabled ? 'flash' : 'flash-outline'}
@@ -929,7 +1028,8 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
 
           <View style={styles.cameraActions}>
             <TouchableOpacity
-              style={styles.sideAction}
+              disabled={loading}
+              style={[styles.sideAction, loading && styles.disabledTouchable]}
               onPress={pickImageFromLibrary}
             >
               <Icon name="image-outline" size={31} color="#fff" />
@@ -940,14 +1040,18 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
               accessibilityRole="button"
               accessibilityLabel="Chụp ảnh"
               disabled={loading || !device}
-              style={styles.shutterOuter}
+              style={[
+                styles.shutterOuter,
+                loading && styles.disabledTouchable,
+              ]}
               onPress={takePhoto}
             >
               <View style={styles.shutterInner} />
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.sideAction}
+              disabled={loading}
+              style={[styles.sideAction, loading && styles.disabledTouchable]}
               onPress={() =>
                 setCameraPosition(current =>
                   current === 'back' ? 'front' : 'back',
@@ -973,11 +1077,19 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.iconButton} onPress={onBack}>
+        <TouchableOpacity
+          disabled={loading}
+          style={[styles.iconButton, loading && styles.disabledTouchable]}
+          onPress={onBack}
+        >
           <Icon name="chevron-back" size={22} color="#1f2937" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Kết quả nhận diện</Text>
-        <TouchableOpacity style={styles.iconButton} onPress={openCamera}>
+        <TouchableOpacity
+          disabled={loading}
+          style={[styles.iconButton, loading && styles.disabledTouchable]}
+          onPress={openCamera}
+        >
           <Icon name="camera-outline" size={22} color="#1f2937" />
         </TouchableOpacity>
       </View>
@@ -1035,7 +1147,14 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
 
         {items.length === 0 && !loading ? (
           <View style={styles.singleActionWrap}>
-            <TouchableOpacity style={styles.captureButtonWide} onPress={openCamera}>
+            <TouchableOpacity
+              disabled={loading}
+              style={[
+                styles.captureButtonWide,
+                loading && styles.disabledTouchable,
+              ]}
+              onPress={openCamera}
+            >
               <Icon name="camera" size={18} color="#fff" />
               <Text style={styles.captureButtonText}>Chụp ảnh</Text>
             </TouchableOpacity>
@@ -1046,10 +1165,10 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
               <Text style={styles.topicText}>Chọn chủ đề cho tất cả</Text>
               <TouchableOpacity
                 activeOpacity={hasIndividualTopics ? 1 : 0.85}
-                disabled={hasIndividualTopics}
+                disabled={loading || hasIndividualTopics}
                 style={[
                   styles.topicButton,
-                  hasIndividualTopics && styles.topicButtonDisabled,
+                  (loading || hasIndividualTopics) && styles.topicButtonDisabled,
                 ]}
                 onPress={() => openTopicPicker({ type: 'all' })}
               >
@@ -1074,7 +1193,12 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
                   <TouchableOpacity
                     key={itemKey}
                     activeOpacity={0.85}
-                    style={[styles.wordCard, selected && styles.wordCardSelected]}
+                    disabled={loading}
+                    style={[
+                      styles.wordCard,
+                      selected && styles.wordCardSelected,
+                      loading && styles.disabledTouchable,
+                    ]}
                     onPress={() => toggleWord(item.word)}
                   >
                     <View style={styles.radioWrap}>
@@ -1095,7 +1219,11 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
                         </Text>
                         <TouchableOpacity
                           activeOpacity={0.85}
-                          style={styles.smallTopicButton}
+                          disabled={loading}
+                          style={[
+                            styles.smallTopicButton,
+                            loading && styles.disabledTouchable,
+                          ]}
                           onPress={(event: GestureResponderEvent) => {
                             event.stopPropagation();
                             openTopicPicker({ type: 'item', itemKey, item });
@@ -1109,6 +1237,7 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
                     <TouchableOpacity
                       accessibilityRole="button"
                       accessibilityLabel={`Phát âm ${item.word}`}
+                      disabled={loading}
                       onPress={(event: GestureResponderEvent) => {
                         event.stopPropagation();
                         playPronunciation(item.word, item.audioUrl);
@@ -1116,6 +1245,7 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
                       style={[
                         styles.soundButton,
                         playingWord === item.word && styles.soundButtonPlaying,
+                        loading && styles.disabledTouchable,
                       ]}
                     >
                       <Icon
@@ -1139,7 +1269,11 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
       {items.length > 0 && (
         <View style={styles.footer}>
           <TouchableOpacity
-            style={styles.secondaryButton}
+            disabled={loading}
+            style={[
+              styles.secondaryButton,
+              loading && styles.footerButtonDisabled,
+            ]}
             onPress={() => saveSelected(false)}
           >
             <Text style={styles.secondaryButtonText}>
@@ -1147,7 +1281,11 @@ const CameraScreen: React.FC<CameraScreenProps> = ({ onBack }) => {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.primaryButton}
+            disabled={loading}
+            style={[
+              styles.primaryButton,
+              loading && styles.footerButtonDisabled,
+            ]}
             onPress={() => saveSelected(true)}
           >
             <Text style={styles.primaryButtonText}>Lưu và đăng ký</Text>
@@ -1303,6 +1441,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 15,
     fontWeight: '800',
+  },
+  disabledTouchable: {
+    opacity: 0.45,
   },
   safeArea: {
     flex: 1,
@@ -1959,6 +2100,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#0066ff',
+  },
+  footerButtonDisabled: {
+    opacity: 0.55,
   },
   primaryButtonText: {
     color: '#fff',

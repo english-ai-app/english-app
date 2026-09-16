@@ -31,7 +31,7 @@ const addOptions: Array<{
   {
     title: 'Từ điển',
     subtitle: 'Tra cứu nghĩa, phát âm và ví dụ chi tiết',
-    icon: 'search-outline',
+    icon: 'book-outline',
     target: 'dictionary',
   },
   {
@@ -43,39 +43,21 @@ const addOptions: Array<{
   {
     title: 'Thêm thủ công',
     subtitle: 'Tự nhập từ vựng và ghi chú cá nhân',
-    icon: 'add-outline',
+    icon: 'create-outline',
     target: 'manualAdd',
   },
 ];
 
-const AddWordScreen: React.FC<AddWordScreenProps> = ({
-  onClose,
-  onNavigate,
-}) => {
+const AddWordScreen: React.FC<AddWordScreenProps> = ({ onNavigate }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.screenContainer}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Quay lại"
-            style={styles.headerButton}
-            onPress={onClose}
-          >
-            <Icon name="chevron-back" size={22} color="#1f2937" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Thêm từ mới</Text>
-          <View style={styles.headerButton} />
-        </View>
-
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
         >
           <Text style={styles.title}>Thêm từ mới</Text>
-          <Text style={styles.subtitle}>Mở rộng vốn từ vựng của bạn</Text>
-
-          <Text style={styles.question}>
+          <Text style={styles.subtitle}>
             Bạn muốn thêm từ để học bằng cách nào?
           </Text>
 
@@ -94,7 +76,7 @@ const AddWordScreen: React.FC<AddWordScreenProps> = ({
                   <Text style={styles.optionTitle}>{option.title}</Text>
                   <Text style={styles.optionSubtitle}>{option.subtitle}</Text>
                 </View>
-                <Icon name="arrow-forward" size={18} color="#c3c8cf" />
+                <Icon name="chevron-forward" size={22} color="#8aa2c7" />
               </TouchableOpacity>
             ))}
 
@@ -107,8 +89,7 @@ const AddWordScreen: React.FC<AddWordScreenProps> = ({
                 />
               </View>
               <Text style={styles.hintText}>
-                Từ bạn chọn sẽ được lưu vào{' '}
-                <Text style={styles.hintLink}>Từ của bạn</Text>
+                Từ bạn chọn sẽ được lưu vào Từ của tôi và có thể xuất hiện trong các bài ôn tập.
               </Text>
             </View>
           </View>
@@ -134,79 +115,51 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f4f6f8',
   },
-  header: {
-    height: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e5e7eb',
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    color: '#1f2937',
-    fontSize: 17,
-    fontWeight: '700',
-  },
   content: {
-    paddingHorizontal: 22,
-    paddingTop: 28,
+    paddingHorizontal: 18,
+    paddingTop: 8,
     paddingBottom: 120,
   },
   title: {
-    color: '#1f2937',
-    fontSize: 22,
-    fontWeight: '800',
-    marginBottom: 6,
+    color: '#172554',
+    fontSize: 25,
+    fontWeight: '900',
+    marginBottom: 8,
   },
   subtitle: {
-    color: '#8b949e',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  question: {
-    alignSelf: 'center',
-    maxWidth: 260,
-    color: '#1f2937',
-    fontSize: 17,
-    fontWeight: '800',
-    lineHeight: 24,
-    textAlign: 'center',
-    marginTop: 32,
-    marginBottom: 28,
+    color: '#5d728f',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+    marginBottom: 26,
   },
   options: {
-    gap: 12,
+    gap: 13,
   },
   optionCard: {
-    minHeight: 78,
+    minHeight: 106,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#dfe7f1',
-    borderRadius: 12,
+    borderColor: '#e0ebf6',
+    borderRadius: 16,
     backgroundColor: '#ffffff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 16,
     shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 2,
   },
   optionIconWrap: {
-    width: 44,
-    height: 44,
+    width: 74,
+    height: 74,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 14,
+    backgroundColor: '#eaf6ff',
+    marginRight: 18,
   },
   optionTextWrap: {
     flex: 1,
@@ -214,46 +167,41 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   optionTitle: {
-    color: '#1f2937',
-    fontSize: 15,
-    fontWeight: '800',
-    marginBottom: 3,
+    color: '#172554',
+    fontSize: 17,
+    fontWeight: '900',
+    marginBottom: 7,
   },
   optionSubtitle: {
-    color: '#7b8490',
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 16,
+    color: '#6b7c93',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
   },
   hintCard: {
-    minHeight: 54,
+    minHeight: 108,
     flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
+    alignItems: 'flex-start',
+    borderRadius: 14,
+    backgroundColor: '#eaf6ff',
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    marginTop: 8,
+    paddingVertical: 17,
+    marginTop: 18,
   },
   hintIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#eef6ff',
-    marginRight: 10,
+    marginRight: 12,
   },
   hintText: {
     flex: 1,
-    color: '#667085',
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 17,
-  },
-  hintLink: {
-    color: '#0f6bff',
-    fontWeight: '800',
+    color: '#526783',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 22,
   },
 });
 

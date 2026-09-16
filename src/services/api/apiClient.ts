@@ -5,7 +5,7 @@ import axios, {
   AxiosResponse,
 } from 'axios';
 
-const GATEWAY_HOST = '192.168.1.84';
+const GATEWAY_HOST = '192.168.68.66';
 const GATEWAY_PORT = 8080;
 const API_BASE_URL = `http://${GATEWAY_HOST}:${GATEWAY_PORT}`;
 

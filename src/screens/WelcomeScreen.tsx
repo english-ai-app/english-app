@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -23,29 +24,58 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onLogin,
   onRegister,
 }) => {
+  const { height } = useWindowDimensions();
+  const isCompact = height < 720;
+  const isTiny = height < 640;
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
+        bounces={false}
+        contentContainerStyle={[
+          styles.content,
+          isCompact && styles.contentCompact,
+          isTiny && styles.contentTiny,
+        ]}
       >
-        <View style={styles.hero}>
-          <Image source={logoImage} resizeMode="contain" style={styles.logo} />
+        <View
+          style={[
+            styles.hero,
+            isCompact && styles.heroCompact,
+            isTiny && styles.heroTiny,
+          ]}
+        >
+          <Image
+            source={logoImage}
+            resizeMode="contain"
+            style={[
+              styles.logo,
+              isCompact && styles.logoCompact,
+              isTiny && styles.logoTiny,
+            ]}
+          />
         </View>
 
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.socialButton} activeOpacity={0.85}>
+        <View style={[styles.actions, isTiny && styles.actionsTiny]}>
+          <TouchableOpacity
+            style={[styles.socialButton, isTiny && styles.actionButtonTiny]}
+            activeOpacity={0.85}
+          >
             <Icon name="logo-google" size={22} color="#ea4335" />
             <Text style={styles.socialText}>Tiếp tục với Google</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.socialButton} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={[styles.socialButton, isTiny && styles.actionButtonTiny]}
+            activeOpacity={0.85}
+          >
             <Icon name="logo-facebook" size={24} color="#1877f2" />
             <Text style={styles.socialText}>Tiếp tục với Facebook</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.emailButton}
+            style={[styles.emailButton, isTiny && styles.actionButtonTiny]}
             activeOpacity={0.88}
             onPress={onEmailLogin}
           >
@@ -54,7 +84,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </TouchableOpacity>
         </View>
 
-        <View style={styles.dividerRow}>
+        <View style={[styles.dividerRow, isTiny && styles.dividerRowTiny]}>
           <View style={styles.divider} />
           <Text style={styles.dividerText}>hoặc</Text>
           <View style={styles.divider} />
@@ -99,17 +129,40 @@ const styles = StyleSheet.create({
     paddingTop: 6,
     paddingBottom: 24,
   },
+  contentCompact: {
+    paddingTop: 0,
+    paddingBottom: 16,
+  },
+  contentTiny: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
   hero: {
     height: 340,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  heroCompact: {
+    height: 270,
+  },
+  heroTiny: {
+    height: 210,
+  },
   logo: {
     width: '112%',
     height: 340,
   },
+  logoCompact: {
+    height: 270,
+  },
+  logoTiny: {
+    height: 210,
+  },
   actions: {
     gap: 12,
+  },
+  actionsTiny: {
+    gap: 10,
   },
   socialButton: {
     height: 48,
@@ -136,6 +189,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f8bff',
     gap: 12,
   },
+  actionButtonTiny: {
+    height: 44,
+  },
   emailText: {
     color: '#fff',
     fontSize: 15,
@@ -145,6 +201,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginVertical: 22,
+  },
+  dividerRowTiny: {
+    marginVertical: 14,
   },
   divider: {
     flex: 1,

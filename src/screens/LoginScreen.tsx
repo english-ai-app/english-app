@@ -6,6 +6,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -27,6 +28,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
   onLogin,
   onRegister,
 }) => {
+  const { height } = useWindowDimensions();
+  const isCompact = height < 720;
+  const isTiny = height < 640;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -66,21 +70,35 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.content}
+        bounces={false}
+        contentContainerStyle={[
+          styles.content,
+          isCompact && styles.contentCompact,
+          isTiny && styles.contentTiny,
+        ]}
       >
-        <TouchableOpacity style={styles.backButton} onPress={onBack}>
+        <TouchableOpacity
+          style={[styles.backButton, isTiny && styles.backButtonTiny]}
+          onPress={onBack}
+        >
           <Icon name="chevron-back" size={24} color="#0f63ff" />
         </TouchableOpacity>
 
-        <View style={styles.header}>
-          <Text style={styles.title}>Đăng nhập</Text>
+        <View
+          style={[
+            styles.header,
+            isCompact && styles.headerCompact,
+            isTiny && styles.headerTiny,
+          ]}
+        >
+          <Text style={[styles.title, isTiny && styles.titleTiny]}>Đăng nhập</Text>
           <Text style={styles.subtitle}>Chào mừng trở lại!</Text>
           <Text style={styles.subtitle}>Đăng nhập để tiếp tục hành trình.</Text>
         </View>
 
-        <View style={styles.form}>
+        <View style={[styles.form, isTiny && styles.formTiny]}>
           {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
-          <View style={styles.inputWrap}>
+          <View style={[styles.inputWrap, isTiny && styles.inputWrapTiny]}>
             <Icon name="mail-outline" size={18} color="#4776a8" />
             <View style={styles.inputBody}>
               <Text style={styles.inputLabel}>Email</Text>
@@ -110,7 +128,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
           </View>
 
           {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
-          <View style={styles.inputWrap}>
+          <View style={[styles.inputWrap, isTiny && styles.inputWrapTiny]}>
             <Icon name="lock-closed-outline" size={18} color="#4776a8" />
             <View style={styles.inputBody}>
               <Text style={styles.inputLabel}>Mật khẩu</Text>
@@ -137,7 +155,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
             </TouchableOpacity>
           </View>
 
-          <View style={styles.optionRow}>
+          <View style={[styles.optionRow, isTiny && styles.optionRowTiny]}>
             <TouchableOpacity
               style={styles.rememberWrap}
               onPress={() => setRememberMe(current => !current)}
@@ -152,29 +170,32 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
+          <TouchableOpacity
+            style={[styles.primaryButton, isTiny && styles.primaryButtonTiny]}
+            onPress={handleLogin}
+          >
             <Text style={styles.primaryText}>Đăng nhập</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.dividerRow}>
+        <View style={[styles.dividerRow, isTiny && styles.dividerRowTiny]}>
           <View style={styles.divider} />
           <Text style={styles.dividerText}>hoặc</Text>
           <View style={styles.divider} />
         </View>
 
-        <View style={styles.socialStack}>
-          <TouchableOpacity style={styles.socialButton}>
+        <View style={[styles.socialStack, isTiny && styles.socialStackTiny]}>
+          <TouchableOpacity style={[styles.socialButton, isTiny && styles.socialButtonTiny]}>
             <Icon name="logo-google" size={22} color="#ea4335" />
             <Text style={styles.socialText}>Tiếp tục với Google</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.socialButton}>
+          <TouchableOpacity style={[styles.socialButton, isTiny && styles.socialButtonTiny]}>
             <Icon name="logo-facebook" size={24} color="#1877f2" />
             <Text style={styles.socialText}>Tiếp tục với Facebook</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.bottomRow}>
+        <View style={[styles.bottomRow, isTiny && styles.bottomRowTiny]}>
           <Text style={styles.mutedText}>Chưa có tài khoản? </Text>
           <TouchableOpacity onPress={onRegister}>
             <Text style={styles.linkText}>Đăng ký ngay</Text>
@@ -196,21 +217,44 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 24,
   },
+  contentCompact: {
+    paddingTop: 4,
+    paddingBottom: 16,
+  },
+  contentTiny: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
   backButton: {
     width: 42,
     height: 42,
     alignItems: 'flex-start',
     justifyContent: 'center',
   },
+  backButtonTiny: {
+    height: 36,
+  },
   header: {
     marginTop: 54,
     marginBottom: 24,
+  },
+  headerCompact: {
+    marginTop: 22,
+    marginBottom: 18,
+  },
+  headerTiny: {
+    marginTop: 10,
+    marginBottom: 14,
   },
   title: {
     color: '#0757d8',
     fontSize: 28,
     fontWeight: '900',
     marginBottom: 10,
+  },
+  titleTiny: {
+    fontSize: 25,
+    marginBottom: 6,
   },
   subtitle: {
     color: '#5d728f',
@@ -220,6 +264,9 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: 12,
+  },
+  formTiny: {
+    gap: 9,
   },
   errorText: {
     color: '#e23b3b',
@@ -236,6 +283,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#fff',
     paddingHorizontal: 14,
+  },
+  inputWrapTiny: {
+    minHeight: 52,
+    paddingHorizontal: 12,
   },
   inputBody: {
     flex: 1,
@@ -259,6 +310,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 3,
     marginBottom: 8,
+  },
+  optionRowTiny: {
+    marginTop: 0,
+    marginBottom: 4,
   },
   rememberWrap: {
     flexDirection: 'row',
@@ -296,6 +351,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f8bff',
     marginTop: 2,
   },
+  primaryButtonTiny: {
+    height: 48,
+  },
   primaryText: {
     color: '#fff',
     fontSize: 16,
@@ -305,6 +363,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginVertical: 20,
+  },
+  dividerRowTiny: {
+    marginVertical: 12,
   },
   divider: {
     flex: 1,
@@ -320,6 +381,9 @@ const styles = StyleSheet.create({
   socialStack: {
     gap: 12,
   },
+  socialStackTiny: {
+    gap: 10,
+  },
   socialButton: {
     height: 48,
     flexDirection: 'row',
@@ -331,6 +395,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     gap: 12,
   },
+  socialButtonTiny: {
+    height: 44,
+  },
   socialText: {
     color: '#172554',
     fontSize: 15,
@@ -341,6 +408,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 22,
+  },
+  bottomRowTiny: {
+    marginTop: 12,
   },
   mutedText: {
     color: '#6b7c93',

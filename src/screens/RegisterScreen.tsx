@@ -6,6 +6,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -24,6 +25,9 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({
   onLogin,
   onRegister,
 }) => {
+  const { height } = useWindowDimensions();
+  const isCompact = height < 720;
+  const isTiny = height < 640;
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -94,21 +98,35 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.content}
+        bounces={false}
+        contentContainerStyle={[
+          styles.content,
+          isCompact && styles.contentCompact,
+          isTiny && styles.contentTiny,
+        ]}
       >
-        <TouchableOpacity style={styles.backButton} onPress={onBack}>
+        <TouchableOpacity
+          style={[styles.backButton, isTiny && styles.backButtonTiny]}
+          onPress={onBack}
+        >
           <Icon name="chevron-back" size={24} color="#0f63ff" />
         </TouchableOpacity>
 
-        <View style={styles.header}>
-          <Text style={styles.title}>Đăng ký</Text>
+        <View
+          style={[
+            styles.header,
+            isCompact && styles.headerCompact,
+            isTiny && styles.headerTiny,
+          ]}
+        >
+          <Text style={[styles.title, isTiny && styles.titleTiny]}>Đăng ký</Text>
           <Text style={styles.subtitle}>Tạo tài khoản để bắt đầu hành trình</Text>
           <Text style={styles.subtitle}>học tiếng Anh cùng LinguaGo</Text>
         </View>
 
-        <View style={styles.form}>
+        <View style={[styles.form, isTiny && styles.formTiny]}>
           {errors.fullName ? <Text style={styles.errorText}>{errors.fullName}</Text> : null}
-          <View style={styles.inputWrap}>
+          <View style={[styles.inputWrap, isTiny && styles.inputWrapTiny]}>
             <Icon name="person-outline" size={18} color="#4776a8" />
             <View style={styles.inputBody}>
               <Text style={styles.inputLabel}>Họ và tên</Text>
@@ -128,7 +146,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({
           </View>
 
           {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
-          <View style={styles.inputWrap}>
+          <View style={[styles.inputWrap, isTiny && styles.inputWrapTiny]}>
             <Icon name="mail-outline" size={18} color="#4776a8" />
             <View style={styles.inputBody}>
               <Text style={styles.inputLabel}>Email</Text>
@@ -158,7 +176,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({
           </View>
 
           {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
-          <View style={styles.inputWrap}>
+          <View style={[styles.inputWrap, isTiny && styles.inputWrapTiny]}>
             <Icon name="lock-closed-outline" size={18} color="#4776a8" />
             <View style={styles.inputBody}>
               <Text style={styles.inputLabel}>Mật khẩu</Text>
@@ -189,7 +207,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({
           {errors.confirmPassword ? (
             <Text style={styles.errorText}>{errors.confirmPassword}</Text>
           ) : null}
-          <View style={styles.inputWrap}>
+          <View style={[styles.inputWrap, isTiny && styles.inputWrapTiny]}>
             <Icon name="lock-closed-outline" size={18} color="#4776a8" />
             <View style={styles.inputBody}>
               <Text style={styles.inputLabel}>Xác nhận mật khẩu</Text>
@@ -225,7 +243,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({
           </View>
         </View>
 
-        <View style={styles.rules}>
+        <View style={[styles.rules, isTiny && styles.rulesTiny]}>
           <View style={styles.ruleRow}>
             <Icon name={minLengthRule.name} size={16} color={minLengthRule.color} />
             <Text
@@ -252,11 +270,14 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({
           </View>
         </View>
 
-        <TouchableOpacity style={styles.primaryButton} onPress={handleRegister}>
+        <TouchableOpacity
+          style={[styles.primaryButton, isTiny && styles.primaryButtonTiny]}
+          onPress={handleRegister}
+        >
           <Text style={styles.primaryText}>Đăng ký</Text>
         </TouchableOpacity>
 
-        <View style={styles.bottomRow}>
+        <View style={[styles.bottomRow, isTiny && styles.bottomRowTiny]}>
           <Text style={styles.mutedText}>Đã có tài khoản? </Text>
           <TouchableOpacity onPress={onLogin}>
             <Text style={styles.linkText}>Đăng nhập</Text>
@@ -278,21 +299,44 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 24,
   },
+  contentCompact: {
+    paddingTop: 4,
+    paddingBottom: 16,
+  },
+  contentTiny: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
   backButton: {
     width: 42,
     height: 42,
     alignItems: 'flex-start',
     justifyContent: 'center',
   },
+  backButtonTiny: {
+    height: 36,
+  },
   header: {
     marginTop: 34,
     marginBottom: 22,
+  },
+  headerCompact: {
+    marginTop: 18,
+    marginBottom: 16,
+  },
+  headerTiny: {
+    marginTop: 6,
+    marginBottom: 12,
   },
   title: {
     color: '#0757d8',
     fontSize: 28,
     fontWeight: '900',
     marginBottom: 10,
+  },
+  titleTiny: {
+    fontSize: 25,
+    marginBottom: 6,
   },
   subtitle: {
     color: '#5d728f',
@@ -302,6 +346,9 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: 11,
+  },
+  formTiny: {
+    gap: 8,
   },
   errorText: {
     color: '#e23b3b',
@@ -318,6 +365,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#fff',
     paddingHorizontal: 14,
+  },
+  inputWrapTiny: {
+    minHeight: 50,
+    paddingHorizontal: 12,
   },
   inputBody: {
     flex: 1,
@@ -339,6 +390,11 @@ const styles = StyleSheet.create({
     gap: 7,
     marginTop: 17,
     marginBottom: 15,
+  },
+  rulesTiny: {
+    gap: 5,
+    marginTop: 10,
+    marginBottom: 10,
   },
   ruleRow: {
     flexDirection: 'row',
@@ -363,6 +419,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#0f8bff',
   },
+  primaryButtonTiny: {
+    height: 48,
+  },
   primaryText: {
     color: '#fff',
     fontSize: 16,
@@ -373,6 +432,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 22,
+  },
+  bottomRowTiny: {
+    marginTop: 12,
   },
   mutedText: {
     color: '#6b7c93',
