@@ -10,6 +10,14 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import ApiErrorModal from '../components/ApiErrorModal';
+import EmailOtpModal from '../components/EmailOtpModal';
+import { getApiErrorMessage } from '../services/api/apiClient';
+import {
+  registerUser,
+  resendEmailOtp,
+  verifyEmailOtp,
+} from '../services/authService';
 
 type RegisterScreenProps = {
   onBack?: () => void;
@@ -36,6 +44,12 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [otpVisible, setOtpVisible] = useState(false);
+  const [otpEmail, setOtpEmail] = useState('');
+  const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(null);
+  const [otpError, setOtpError] = useState('');
+  const [apiError, setApiError] = useState('');
   const [errors, setErrors] = useState({
     fullName: '',
     email: '',
@@ -57,9 +71,11 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({
       : { name: 'close-circle' as const, color: '#e23b3b' };
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     setSubmitted(true);
     setPasswordTouched(true);
+    setOtpError('');
+    setApiError('');
 
     const nextErrors = {
       fullName: fullName.trim() ? '' : 'Vui lòng nhập họ và tên',
@@ -86,7 +102,55 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({
       hasMinLength &&
       hasRequiredTypes
     ) {
+      try {
+        setLoading(true);
+        const response = await registerUser({
+          fullName,
+          email,
+          password,
+        });
+
+        if (response.otpRequired) {
+          setOtpEmail(response.email);
+          setOtpExpiresAt(response.otpExpiresAt);
+          setOtpVisible(true);
+          return;
+        }
+
+        onRegister?.();
+      } catch (error) {
+        setApiError(getApiErrorMessage(error, 'Không thể đăng ký tài khoản'));
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleVerifyOtp = async (otp: string) => {
+    try {
+      setLoading(true);
+      setOtpError('');
+      await verifyEmailOtp(otpEmail || email, otp);
+      setOtpVisible(false);
       onRegister?.();
+    } catch (error) {
+      setOtpError(getApiErrorMessage(error, 'Ma OTP khong hop le'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    try {
+      setLoading(true);
+      setOtpError('');
+      const response = await resendEmailOtp(otpEmail || email);
+      setOtpEmail(response.email);
+      setOtpExpiresAt(response.otpExpiresAt);
+    } catch (error) {
+      setOtpError(getApiErrorMessage(error, 'Khong the gui lai OTP'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -271,7 +335,12 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({
         </View>
 
         <TouchableOpacity
-          style={[styles.primaryButton, isTiny && styles.primaryButtonTiny]}
+          disabled={loading}
+          style={[
+            styles.primaryButton,
+            isTiny && styles.primaryButtonTiny,
+            loading && styles.primaryButtonDisabled,
+          ]}
           onPress={handleRegister}
         >
           <Text style={styles.primaryText}>Đăng ký</Text>
@@ -284,6 +353,22 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <EmailOtpModal
+        visible={otpVisible}
+        email={otpEmail || email}
+        canResend
+        expiresAt={otpExpiresAt}
+        loading={loading}
+        error={otpError}
+        onClose={() => setOtpVisible(false)}
+        onVerify={handleVerifyOtp}
+        onResend={handleResendOtp}
+      />
+      <ApiErrorModal
+        visible={Boolean(apiError)}
+        message={apiError}
+        onClose={() => setApiError('')}
+      />
     </SafeAreaView>
   );
 };
@@ -421,6 +506,9 @@ const styles = StyleSheet.create({
   },
   primaryButtonTiny: {
     height: 48,
+  },
+  primaryButtonDisabled: {
+    backgroundColor: '#a8cbed',
   },
   primaryText: {
     color: '#fff',

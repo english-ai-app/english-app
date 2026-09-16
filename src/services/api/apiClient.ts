@@ -4,10 +4,41 @@ import axios, {
   AxiosRequestConfig,
   AxiosResponse,
 } from 'axios';
+import { NativeModules, Platform } from 'react-native';
 
-const GATEWAY_HOST = '192.168.68.66';
 const GATEWAY_PORT = 8080;
-const API_BASE_URL = `http://${GATEWAY_HOST}:${GATEWAY_PORT}`;
+const LAN_GATEWAY_HOST = '192.168.1.31';
+
+const getHostFromUrl = (url?: string): string | null => {
+  if (!url) return null;
+
+  const match = url.match(/^https?:\/\/([^/:]+)/);
+  return match?.[1] ?? null;
+};
+
+const getMetroHost = (): string | null => {
+  const sourceCode = NativeModules.SourceCode as
+    | { scriptURL?: string }
+    | undefined;
+
+  return getHostFromUrl(sourceCode?.scriptURL);
+};
+
+const getGatewayHost = (): string => {
+  const metroHost = getMetroHost();
+
+  if (metroHost && metroHost !== 'localhost' && metroHost !== '127.0.0.1') {
+    return metroHost;
+  }
+
+  return Platform.select({
+    android: LAN_GATEWAY_HOST,
+    ios: 'localhost',
+    default: LAN_GATEWAY_HOST,
+  });
+};
+
+const API_BASE_URL = `http://${getGatewayHost()}:${GATEWAY_PORT}`;
 
 type TokenProvider = () => string | null | Promise<string | null>;
 
@@ -78,6 +109,14 @@ const isEnvelope = <T>(data: unknown): data is ApiEnvelope<T> => {
 };
 
 const getMessageFromUnknown = (data: unknown): string | undefined => {
+  if (typeof data === 'string') {
+    if (data.includes('Cannot POST')) {
+      return 'Dịch vụ đăng nhập chưa sẵn sàng. Vui lòng thử lại sau.';
+    }
+
+    return data.trim() || undefined;
+  }
+
   if (!data || typeof data !== 'object') return undefined;
   const target = data as Record<string, unknown>;
   const message = target.message;

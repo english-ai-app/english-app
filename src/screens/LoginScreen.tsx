@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -10,6 +10,15 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import ApiErrorModal from '../components/ApiErrorModal';
+import EmailOtpModal from '../components/EmailOtpModal';
+import { getApiErrorMessage } from '../services/api/apiClient';
+import {
+  getEmailVerificationRequired,
+  loginUser,
+  resendEmailOtp,
+  verifyEmailOtp,
+} from '../services/authService';
 
 type LoginScreenProps = {
   onBack?: () => void;
@@ -19,9 +28,6 @@ type LoginScreenProps = {
 
 const isValidEmail = (value: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-
-const TEST_EMAIL = 'admin@gmail.com';
-const TEST_PASSWORD = 'Test1234';
 
 const LoginScreen: React.FC<LoginScreenProps> = ({
   onBack,
@@ -35,12 +41,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-  const [errors, setErrors] = useState({
-    email: '',
-    password: '',
-  });
+  const [loading, setLoading] = useState(false);
+  const [otpVisible, setOtpVisible] = useState(false);
+  const [otpEmail, setOtpEmail] = useState('');
+  const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(null);
+  const [otpCanResend, setOtpCanResend] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [apiError, setApiError] = useState('');
+  const [errors, setErrors] = useState({ email: '', password: '' });
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
+    setOtpError('');
+    setApiError('');
     const nextErrors = {
       email: email.trim()
         ? isValidEmail(email)
@@ -50,18 +62,62 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
       password: password ? '' : 'Vui lòng nhập mật khẩu',
     };
 
-    if (
-      !nextErrors.email &&
-      !nextErrors.password &&
-      (email.trim().toLowerCase() !== TEST_EMAIL || password !== TEST_PASSWORD)
-    ) {
-      nextErrors.password = 'Email hoặc mật khẩu không đúng';
+    setErrors(nextErrors);
+    if (nextErrors.email || nextErrors.password) {
+      return;
     }
 
-    setErrors(nextErrors);
-
-    if (!nextErrors.email && !nextErrors.password) {
+    try {
+      setLoading(true);
+      await loginUser({ email, password });
       onLogin?.();
+    } catch (error) {
+      const verification = getEmailVerificationRequired(error);
+      if (verification) {
+        setOtpEmail(verification.email);
+        setOtpExpiresAt(verification.otpExpiresAt);
+        setOtpCanResend(verification.canResend);
+        setOtpError(verification.message);
+        setOtpVisible(true);
+        return;
+      }
+      setApiError(getApiErrorMessage(error, 'Email hoặc mật khẩu không đúng'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (otp: string) => {
+    try {
+      setLoading(true);
+      setOtpError('');
+      await verifyEmailOtp(otpEmail || email, otp);
+      setOtpVisible(false);
+      onLogin?.();
+    } catch (error) {
+      const verification = getEmailVerificationRequired(error);
+      if (verification) {
+        setOtpCanResend(verification.canResend);
+        setOtpExpiresAt(verification.otpExpiresAt);
+      }
+      setOtpError(getApiErrorMessage(error, 'Mã OTP không hợp lệ'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    try {
+      setLoading(true);
+      setOtpError('');
+      const response = await resendEmailOtp(otpEmail || email);
+      setOtpEmail(response.email);
+      setOtpExpiresAt(response.otpExpiresAt);
+      setOtpCanResend(false);
+    } catch (error) {
+      setOtpError(getApiErrorMessage(error, 'Không thể gửi lại OTP'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -80,6 +136,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
         <TouchableOpacity
           style={[styles.backButton, isTiny && styles.backButtonTiny]}
           onPress={onBack}
+          disabled={loading}
         >
           <Icon name="chevron-back" size={24} color="#0f63ff" />
         </TouchableOpacity>
@@ -104,16 +161,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
               <Text style={styles.inputLabel}>Email</Text>
               <TextInput
                 autoCapitalize="none"
+                editable={!loading}
                 keyboardType="email-address"
                 value={email}
-                onBlur={() => {
-                  if (email.trim() && !isValidEmail(email)) {
-                    setErrors(current => ({
-                      ...current,
-                      email: 'Email không đúng định dạng',
-                    }));
-                  }
-                }}
                 onChangeText={value => {
                   setEmail(value);
                   if (errors.email) {
@@ -133,6 +183,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
             <View style={styles.inputBody}>
               <Text style={styles.inputLabel}>Mật khẩu</Text>
               <TextInput
+                editable={!loading}
                 secureTextEntry={!passwordVisible}
                 value={password}
                 onChangeText={value => {
@@ -146,7 +197,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 style={styles.input}
               />
             </View>
-            <TouchableOpacity onPress={() => setPasswordVisible(current => !current)}>
+            <TouchableOpacity
+              disabled={loading}
+              onPress={() => setPasswordVisible(current => !current)}
+            >
               <Icon
                 name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
                 size={19}
@@ -158,6 +212,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
           <View style={[styles.optionRow, isTiny && styles.optionRowTiny]}>
             <TouchableOpacity
               style={styles.rememberWrap}
+              disabled={loading}
               onPress={() => setRememberMe(current => !current)}
             >
               <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
@@ -165,16 +220,23 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
               </View>
               <Text style={styles.optionText}>Ghi nhớ đăng nhập</Text>
             </TouchableOpacity>
-            <TouchableOpacity>
+            <TouchableOpacity disabled={loading}>
               <Text style={styles.forgotText}>Quên mật khẩu?</Text>
             </TouchableOpacity>
           </View>
 
           <TouchableOpacity
-            style={[styles.primaryButton, isTiny && styles.primaryButtonTiny]}
+            disabled={loading}
+            style={[
+              styles.primaryButton,
+              isTiny && styles.primaryButtonTiny,
+              loading && styles.primaryButtonDisabled,
+            ]}
             onPress={handleLogin}
           >
-            <Text style={styles.primaryText}>Đăng nhập</Text>
+            <Text style={styles.primaryText}>
+              {loading ? 'Đang xử lý...' : 'Đăng nhập'}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -185,11 +247,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
         </View>
 
         <View style={[styles.socialStack, isTiny && styles.socialStackTiny]}>
-          <TouchableOpacity style={[styles.socialButton, isTiny && styles.socialButtonTiny]}>
+          <TouchableOpacity
+            disabled={loading}
+            style={[styles.socialButton, isTiny && styles.socialButtonTiny]}
+          >
             <Icon name="logo-google" size={22} color="#ea4335" />
             <Text style={styles.socialText}>Tiếp tục với Google</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.socialButton, isTiny && styles.socialButtonTiny]}>
+          <TouchableOpacity
+            disabled={loading}
+            style={[styles.socialButton, isTiny && styles.socialButtonTiny]}
+          >
             <Icon name="logo-facebook" size={24} color="#1877f2" />
             <Text style={styles.socialText}>Tiếp tục với Facebook</Text>
           </TouchableOpacity>
@@ -197,11 +265,27 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
 
         <View style={[styles.bottomRow, isTiny && styles.bottomRowTiny]}>
           <Text style={styles.mutedText}>Chưa có tài khoản? </Text>
-          <TouchableOpacity onPress={onRegister}>
+          <TouchableOpacity disabled={loading} onPress={onRegister}>
             <Text style={styles.linkText}>Đăng ký ngay</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <EmailOtpModal
+        visible={otpVisible}
+        email={otpEmail || email}
+        canResend={otpCanResend}
+        expiresAt={otpExpiresAt}
+        loading={loading}
+        error={otpError}
+        onClose={() => setOtpVisible(false)}
+        onVerify={handleVerifyOtp}
+        onResend={handleResendOtp}
+      />
+      <ApiErrorModal
+        visible={Boolean(apiError)}
+        message={apiError}
+        onClose={() => setApiError('')}
+      />
     </SafeAreaView>
   );
 };
@@ -353,6 +437,9 @@ const styles = StyleSheet.create({
   },
   primaryButtonTiny: {
     height: 48,
+  },
+  primaryButtonDisabled: {
+    backgroundColor: '#a8cbed',
   },
   primaryText: {
     color: '#fff',
