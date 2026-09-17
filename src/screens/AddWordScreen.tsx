@@ -128,9 +128,9 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     color: '#5d728f',
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 20,
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 21,
     marginBottom: 26,
   },
   options: {
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   optionSubtitle: {
     color: '#6b7c93',
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '400',
     lineHeight: 20,
   },
   hintCard: {
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: '#526783',
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '400',
     lineHeight: 22,
   },
 });

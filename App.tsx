@@ -91,6 +91,21 @@ type AuthScreenKey = 'welcome' | 'login' | 'register' | 'loading' | 'app';
 const App: React.FC = () => {
   const [authScreen, setAuthScreen] = useState<AuthScreenKey>('welcome');
   const [screen, setScreen] = useState<AppScreenKey>('home');
+  const [cameraBackTarget, setCameraBackTarget] = useState<AppScreenKey>('home');
+
+  const openCamera = (backTarget: AppScreenKey) => {
+    setCameraBackTarget(backTarget);
+    setScreen('camera');
+  };
+
+  const navigateFromAddWord = (nextScreen: AppScreenKey) => {
+    if (nextScreen === 'camera') {
+      openCamera('addWord');
+      return;
+    }
+
+    setScreen(nextScreen);
+  };
 
   if (authScreen === 'welcome') {
     return (
@@ -127,14 +142,14 @@ const App: React.FC = () => {
   }
 
   if (screen === 'camera') {
-    return <CameraScreen autoOpen onBack={() => setScreen('home')} />;
+    return <CameraScreen autoOpen onBack={() => setScreen(cameraBackTarget)} />;
   }
 
   if (screen === 'addWord') {
     return (
       <AddWordScreen
         onClose={() => setScreen('home')}
-        onNavigate={setScreen}
+        onNavigate={navigateFromAddWord}
       />
     );
   }
@@ -171,7 +186,7 @@ const App: React.FC = () => {
 
   return (
     <HomeScreen
-      onOpenCamera={() => setScreen('camera')}
+      onOpenCamera={() => openCamera('home')}
       onOpenAddWord={() => setScreen('addWord')}
       onNavigate={setScreen}
     />

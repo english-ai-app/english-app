@@ -12,6 +12,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 
 const logoImage = require('../assets/images/logo/hello.png');
+const googleImage = require('../assets/images/logo/google.webp');
 
 type WelcomeScreenProps = {
   onEmailLogin?: () => void;
@@ -62,16 +63,28 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             style={[styles.socialButton, isTiny && styles.actionButtonTiny]}
             activeOpacity={0.85}
           >
-            <Icon name="logo-google" size={22} color="#ea4335" />
-            <Text style={styles.socialText}>Tiếp tục với Google</Text>
+            <View style={styles.buttonContent}>
+              <View style={styles.iconSlot}>
+                <Image
+                  source={googleImage}
+                  resizeMode="contain"
+                  style={styles.googleIcon}
+                />
+              </View>
+              <Text style={styles.socialText}>Tiếp tục với Google</Text>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.socialButton, isTiny && styles.actionButtonTiny]}
             activeOpacity={0.85}
           >
-            <Icon name="logo-facebook" size={24} color="#1877f2" />
-            <Text style={styles.socialText}>Tiếp tục với Facebook</Text>
+            <View style={styles.buttonContent}>
+              <View style={styles.iconSlot}>
+                <Icon name="logo-facebook" size={24} color="#1877f2" />
+              </View>
+              <Text style={styles.socialText}>Tiếp tục với Facebook</Text>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -79,8 +92,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             activeOpacity={0.88}
             onPress={onEmailLogin}
           >
-            <Icon name="mail" size={20} color="#fff" />
-            <Text style={styles.emailText}>Đăng nhập với Email</Text>
+            <View style={styles.buttonContent}>
+              <View style={styles.iconSlot}>
+                <Icon name="mail" size={20} color="#fff" />
+              </View>
+              <Text style={styles.emailText}>Đăng nhập với Email</Text>
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -127,36 +144,41 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 18,
     paddingTop: 6,
-    paddingBottom: 24,
+    paddingBottom: 8,
   },
   contentCompact: {
     paddingTop: 0,
-    paddingBottom: 16,
+    paddingBottom: 6,
   },
   contentTiny: {
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 4,
   },
   hero: {
-    height: 340,
+    aspectRatio: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    marginHorizontal: -18,
+    overflow: 'hidden',
   },
   heroCompact: {
-    height: 270,
+    aspectRatio: 1,
   },
   heroTiny: {
-    height: 210,
+    aspectRatio: 1,
+    marginHorizontal: -16,
   },
   logo: {
-    width: '112%',
-    height: 340,
+    width: '100%',
+    height: '100%',
   },
   logoCompact: {
-    height: 270,
+    width: '100%',
+    height: '100%',
   },
   logoTiny: {
-    height: 210,
+    width: '100%',
+    height: '100%',
   },
   actions: {
     gap: 12,
@@ -169,15 +191,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 20,
     borderWidth: 1,
     borderColor: '#d9e8f7',
     borderRadius: 8,
     backgroundColor: '#fff',
-    gap: 12,
+    gap: 8,
   },
   socialText: {
     color: '#172554',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '900',
   },
   emailButton: {
@@ -185,16 +208,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 20,
     borderRadius: 8,
     backgroundColor: '#0f8bff',
-    gap: 12,
+    gap: 8,
   },
   actionButtonTiny: {
     height: 44,
   },
+  buttonContent: {
+    width: 200,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  iconSlot: {
+    width: 28,
+    alignItems: 'center',
+  },
+  googleIcon: {
+    width: 22,
+    height: 22,
+  },
   emailText: {
     color: '#fff',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '900',
   },
   dividerRow: {
@@ -225,17 +263,17 @@ const styles = StyleSheet.create({
   },
   mutedText: {
     color: '#6b7c93',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
   linkText: {
     color: '#087cff',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '900',
   },
   linkSmall: {
     color: '#087cff',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '800',
   },
   hiddenLogin: {

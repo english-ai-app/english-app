@@ -1,5 +1,6 @@
 ﻿import React, { useState } from 'react';
 import {
+  Image,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import ApiErrorModal from '../components/ApiErrorModal';
 import EmailOtpModal from '../components/EmailOtpModal';
 import { getApiErrorMessage } from '../services/api/apiClient';
+const googleImage = require('../assets/images/logo/google.webp');
 import {
   getEmailVerificationRequired,
   loginUser,
@@ -148,13 +150,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
             isTiny && styles.headerTiny,
           ]}
         >
-          <Text style={[styles.title, isTiny && styles.titleTiny]}>Đăng nhập</Text>
+          <Text style={[styles.title, isTiny && styles.titleTiny]}>
+            Đăng nhập
+          </Text>
           <Text style={styles.subtitle}>Chào mừng trở lại!</Text>
           <Text style={styles.subtitle}>Đăng nhập để tiếp tục hành trình.</Text>
         </View>
 
         <View style={[styles.form, isTiny && styles.formTiny]}>
-          {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
+          {errors.email ? (
+            <Text style={styles.errorText}>{errors.email}</Text>
+          ) : null}
           <View style={[styles.inputWrap, isTiny && styles.inputWrapTiny]}>
             <Icon name="mail-outline" size={18} color="#4776a8" />
             <View style={styles.inputBody}>
@@ -177,7 +183,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
             </View>
           </View>
 
-          {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
+          {errors.password ? (
+            <Text style={styles.errorText}>{errors.password}</Text>
+          ) : null}
           <View style={[styles.inputWrap, isTiny && styles.inputWrapTiny]}>
             <Icon name="lock-closed-outline" size={18} color="#4776a8" />
             <View style={styles.inputBody}>
@@ -215,7 +223,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
               disabled={loading}
               onPress={() => setRememberMe(current => !current)}
             >
-              <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+              <View
+                style={[styles.checkbox, rememberMe && styles.checkboxChecked]}
+              >
                 {rememberMe && <Icon name="checkmark" size={13} color="#fff" />}
               </View>
               <Text style={styles.optionText}>Ghi nhớ đăng nhập</Text>
@@ -251,15 +261,27 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
             disabled={loading}
             style={[styles.socialButton, isTiny && styles.socialButtonTiny]}
           >
-            <Icon name="logo-google" size={22} color="#ea4335" />
-            <Text style={styles.socialText}>Tiếp tục với Google</Text>
+            <View style={styles.buttonContent}>
+              <View style={styles.iconSlot}>
+                <Image
+                  source={googleImage}
+                  resizeMode="contain"
+                  style={styles.googleIcon}
+                />
+              </View>
+              <Text style={styles.socialText}>Tiếp tục với Google</Text>
+            </View>
           </TouchableOpacity>
           <TouchableOpacity
             disabled={loading}
             style={[styles.socialButton, isTiny && styles.socialButtonTiny]}
           >
-            <Icon name="logo-facebook" size={24} color="#1877f2" />
-            <Text style={styles.socialText}>Tiếp tục với Facebook</Text>
+            <View style={styles.buttonContent}>
+              <View style={styles.iconSlot}>
+                <Icon name="logo-facebook" size={24} color="#1877f2" />
+              </View>
+              <Text style={styles.socialText}>Tiếp tục với Facebook</Text>
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -476,14 +498,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 20,
     borderWidth: 1,
     borderColor: '#d9e8f7',
     borderRadius: 8,
     backgroundColor: '#fff',
-    gap: 12,
+    gap: 8,
   },
   socialButtonTiny: {
     height: 44,
+  },
+  iconSlot: {
+    width: 28,
+    alignItems: 'center',
+  },
+  buttonContent: {
+    width: 200,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  googleIcon: {
+    width: 22,
+    height: 22,
   },
   socialText: {
     color: '#172554',

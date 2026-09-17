@@ -186,6 +186,17 @@ const logError = (error: AxiosError): void => {
   });
 };
 
+const isPublicAuthEndpoint = (url?: string): boolean => {
+  if (!url) return false;
+
+  return [
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/auth/verify-email',
+    '/api/auth/resend-otp',
+  ].some(endpoint => url.includes(endpoint));
+};
+
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 60000,
@@ -231,7 +242,13 @@ apiClient.interceptors.response.use(
       const statusCode = error.response?.status;
       const responseData = error.response?.data;
       const responseMessage = getMessageFromUnknown(responseData);
-      const isAuthError = statusCode === 401 || statusCode === 403;
+      const isPublicAuthError = isPublicAuthEndpoint(error.config?.url);
+      const isAuthError =
+        (statusCode === 401 || statusCode === 403) && !isPublicAuthError;
+      const publicAuthMessage =
+        statusCode === 401 && isPublicAuthError
+          ? 'Email hoặc mật khẩu không đúng'
+          : undefined;
 
       if (isAuthError && unauthorizedHandler) {
         unauthorizedHandler();
@@ -240,6 +257,7 @@ apiClient.interceptors.response.use(
       throw new ApiClientError({
         message:
           responseMessage ||
+          publicAuthMessage ||
           (error.code === 'ECONNABORTED'
             ? 'Yêu cầu quá thời gian chờ'
             : mapStatusToMessage(statusCode)),
