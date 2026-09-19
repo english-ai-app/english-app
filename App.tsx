@@ -8,6 +8,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import LoadingScreen from './src/screens/LoadingScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import DictionaryScreen from './src/screens/DictionaryScreen';
 import { BottomTabKey } from './src/components/BottomNav';
 
 const screenConfig: Record<
@@ -166,6 +167,10 @@ const App: React.FC = () => {
         }}
       />
     );
+  }
+
+  if (screen === 'dictionary') {
+    return <DictionaryScreen onBack={() => setScreen('addWord')} />;
   }
 
   if (screen !== 'home') {

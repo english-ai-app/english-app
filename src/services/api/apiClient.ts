@@ -7,7 +7,9 @@ import axios, {
 import { NativeModules, Platform } from 'react-native';
 
 const GATEWAY_PORT = 8080;
-const LAN_GATEWAY_HOST = '192.168.1.31';
+const ANDROID_EMULATOR_GATEWAY_HOST = '10.0.2.2';
+const USB_REVERSE_GATEWAY_HOST = '127.0.0.1';
+const LAN_GATEWAY_HOST = '192.168.1.22';
 
 const getHostFromUrl = (url?: string): string | null => {
   if (!url) return null;
@@ -24,6 +26,31 @@ const getMetroHost = (): string | null => {
   return getHostFromUrl(sourceCode?.scriptURL);
 };
 
+const isAndroidEmulator = (): boolean => {
+  if (Platform.OS !== 'android') return false;
+
+  const constants = Platform.constants as Record<string, unknown>;
+  const values = [
+    constants.Brand,
+    constants.Manufacturer,
+    constants.Model,
+    constants.Fingerprint,
+  ]
+    .filter((value): value is string => typeof value === 'string')
+    .map(value => value.toLowerCase());
+
+  return values.some(value =>
+    [
+      'emulator',
+      'generic',
+      'goldfish',
+      'ranchu',
+      'sdk_gphone',
+      'sdk_phone',
+    ].some(marker => value.includes(marker)),
+  );
+};
+
 const getGatewayHost = (): string => {
   const metroHost = getMetroHost();
 
@@ -31,8 +58,13 @@ const getGatewayHost = (): string => {
     return metroHost;
   }
 
+  if (Platform.OS === 'android') {
+    return isAndroidEmulator()
+      ? ANDROID_EMULATOR_GATEWAY_HOST
+      : USB_REVERSE_GATEWAY_HOST;
+  }
+
   return Platform.select({
-    android: LAN_GATEWAY_HOST,
     ios: 'localhost',
     default: LAN_GATEWAY_HOST,
   });
