@@ -12,7 +12,10 @@ import {
 import Sound from 'react-native-sound';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {
+  DictionaryDefinitionGroup,
+  DictionaryDefinitionItem,
   DictionaryEntry,
+  DictionaryExample,
   DictionaryPhrase,
   DictionarySense,
   DictionarySearchResult,
@@ -54,10 +57,44 @@ const buildSuggestionList = (prefix: string, suggestions?: string[]): string[] =
 const suggestionSkeletonRows = [0, 1, 2, 3];
 const resultSkeletonRows = [0, 1, 2];
 
+const partOfSpeechLabels: Record<string, string> = {
+  noun: 'danh từ',
+  verb: 'động từ',
+  adjective: 'tính từ',
+  adverb: 'trạng từ',
+  pronoun: 'đại từ',
+  preposition: 'giới từ',
+  conjunction: 'liên từ',
+  interjection: 'thán từ',
+  abbreviation: 'viết tắt',
+};
+
+const partOfSpeechLabel = (value?: string | null): string | null => {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  return partOfSpeechLabels[normalized] || value;
+};
+
+const exampleItemsFrom = (
+  exampleItems?: DictionaryExample[] | null,
+  examples?: string[] | null,
+): DictionaryExample[] => {
+  const items = normalizeArray(exampleItems);
+  if (items.length) return items;
+  return normalizeArray(examples).map(text => ({ text }));
+};
+
 type ExampleItem = {
+  text: string;
+  meaningVi?: string | null;
+};
+
+type ExampleGroup = {
   id: string;
   label: string;
-  text: string;
+  definition?: string | null;
+  meaningVi?: string | null;
+  examples: ExampleItem[];
 };
 
 const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ onBack }) => {
@@ -88,6 +125,14 @@ const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ onBack }) => {
       entries.find(entry => entry.entryId === activeEntryId) ?? entries[0]
     );
   }, [activeEntryId, entries]);
+  const activeEntryMeaningVi = useMemo(() => {
+    const groupMeaning = activeEntry?.definitionGroups
+      ?.flatMap(group => normalizeArray(group.definitions))
+      .find(item => item.meaningVi)?.meaningVi;
+    if (groupMeaning) return groupMeaning;
+    return activeEntry?.senses?.find(sense => sense.meaningVi)?.meaningVi ?? null;
+  }, [activeEntry]);
+  const activePartOfSpeech = partOfSpeechLabel(activeEntry?.partOfSpeech);
 
   const allPhrases = useMemo<DictionaryPhrase[]>(
     () => entries.flatMap(entry => normalizeArray(entry.phrases)),
@@ -240,6 +285,22 @@ const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ onBack }) => {
     </View>
   );
 
+  const renderExample = (
+    example: DictionaryExample,
+    index: number,
+    keyPrefix: string,
+  ) => (
+    <View key={`${keyPrefix}-${index}-${example.text}`} style={styles.exampleLine}>
+      <View style={styles.bullet} />
+      <View style={styles.exampleContent}>
+        <Text style={styles.exampleText}>{example.text}</Text>
+        {example.meaningVi ? (
+          <Text style={styles.exampleTranslation}>{example.meaningVi}</Text>
+        ) : null}
+      </View>
+    </View>
+  );
+
   const renderSearchSkeleton = () => (
     <View style={styles.resultSkeleton}>
       <View style={styles.resultSkeletonHeader}>
@@ -301,17 +362,83 @@ const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ onBack }) => {
           <Text style={styles.translation}>{sense.meaningVi}</Text>
         ) : null}
 
-        {normalizeArray(sense.examples).slice(0, 2).map(example => (
-          <View key={example} style={styles.exampleLine}>
-            <View style={styles.bullet} />
-            <Text style={styles.exampleText}>{example}</Text>
-          </View>
-        ))}
+        {exampleItemsFrom(sense.exampleItems, sense.examples)
+          .slice(0, 2)
+          .map((example, exampleIndex) =>
+            renderExample(example, exampleIndex, sense.senseId || 'sense'),
+          )}
       </TouchableOpacity>
     );
   };
 
+  const renderDefinitionItem = (
+    item: DictionaryDefinitionItem,
+    index: number,
+  ) => (
+    <View
+      key={item.itemId || `${activeEntry?.entryId}-definition-${index}`}
+      style={[
+        styles.definitionItemBlock,
+        item.subDefinition && styles.subDefinitionBlock,
+      ]}
+    >
+      {item.subDefinition ? <View style={styles.definitionBullet} /> : null}
+      <View style={styles.definitionBody}>
+        {item.usageLabels?.length ? (
+          <View style={styles.labelWrap}>
+            {item.usageLabels.map(label => (
+              <Text key={label} style={styles.usageLabel}>
+                {label}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+
+        <Text style={styles.definitionText}>{item.definition}</Text>
+
+        {item.meaningVi ? (
+          <Text style={styles.translation}>{item.meaningVi}</Text>
+        ) : null}
+
+        {exampleItemsFrom(item.exampleItems, item.examples)
+          .slice(0, 2)
+          .map((example, exampleIndex) =>
+            renderExample(example, exampleIndex, item.itemId || 'definition'),
+          )}
+      </View>
+    </View>
+  );
+
+  const renderDefinitionGroup = (
+    group: DictionaryDefinitionGroup,
+    index: number,
+  ) => (
+    <View
+      key={group.groupId || `${activeEntry?.entryId}-definition-group-${index}`}
+      style={styles.senseCard}
+    >
+      <Text style={styles.cardNumber}>Nghĩa {index + 1}</Text>
+      {normalizeArray(group.definitions).map(renderDefinitionItem)}
+
+      {group.seeAlso?.length ? (
+        <View style={styles.seeAlsoBlock}>
+          <Text style={styles.seeAlsoTitle}>Xem thêm</Text>
+          <Text style={styles.seeAlsoText}>{group.seeAlso.join(' · ')}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+
   const renderDefinitions = () => {
+    const definitionGroups = normalizeArray(activeEntry?.definitionGroups);
+    if (definitionGroups.length) {
+      return (
+        <View style={styles.stack}>
+          {definitionGroups.map(renderDefinitionGroup)}
+        </View>
+      );
+    }
+
     const senses = normalizeArray(activeEntry?.senses);
     if (!senses.length) {
       return renderEmptyState('Chưa có định nghĩa cho mục từ này.');
@@ -322,35 +449,66 @@ const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ onBack }) => {
 
   const renderExamples = () => {
     const seen = new Set<string>();
-    const examples = normalizeArray(activeEntry?.senses).flatMap(
-      (sense, senseIndex): ExampleItem[] =>
-        normalizeArray(sense.examples)
-          .filter(example => {
-            const key = example.trim().toLowerCase();
-            if (!key || seen.has(key)) return false;
-            seen.add(key);
-            return true;
+    const definitionGroups = normalizeArray(activeEntry?.definitionGroups);
+    const groupedExamples: ExampleGroup[] = definitionGroups.length
+      ? definitionGroups
+          .map((group, groupIndex): ExampleGroup => {
+            const definitions = normalizeArray(group.definitions);
+            const examples = definitions.flatMap(item =>
+              exampleItemsFrom(item.exampleItems, item.examples).filter(example => {
+                const key = example.text.trim().toLowerCase();
+                if (!key || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              }),
+            );
+            const mainDefinition = definitions[0];
+            return {
+              id: group.groupId || `definition-group-${groupIndex}`,
+              label: `Nghĩa ${groupIndex + 1}`,
+              definition: mainDefinition?.definition,
+              meaningVi: mainDefinition?.meaningVi,
+              examples,
+            };
           })
-          .map((example, exampleIndex) => ({
-            id: `${sense.senseId}-${exampleIndex}`,
-            label: `Nghĩa ${sense.senseNumber || senseIndex + 1}`,
-            text: example,
-          })),
-    );
+          .filter(group => group.examples.length)
+      : normalizeArray(activeEntry?.senses)
+          .map((sense, senseIndex): ExampleGroup => {
+            const examples = exampleItemsFrom(sense.exampleItems, sense.examples)
+              .filter(example => {
+                const key = example.text.trim().toLowerCase();
+                if (!key || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              });
+            return {
+              id: sense.senseId || `sense-${senseIndex}`,
+              label: `Nghĩa ${senseIndex + 1}`,
+              definition: sense.definition,
+              meaningVi: sense.meaningVi,
+              examples,
+            };
+          })
+          .filter(group => group.examples.length);
 
-    if (!examples.length) {
+    if (!groupedExamples.length) {
       return renderEmptyState('Chưa có ví dụ cho mục từ này.');
     }
 
     return (
       <View style={styles.stack}>
-        {examples.map(example => (
-          <View key={example.id} style={styles.exampleCard}>
-            <Text style={styles.exampleTitle}>{example.label}</Text>
-            <View style={styles.exampleLine}>
-              <View style={styles.bullet} />
-              <Text style={styles.exampleText}>{example.text}</Text>
-            </View>
+        {groupedExamples.map(group => (
+          <View key={group.id} style={styles.exampleCard}>
+            <Text style={styles.exampleTitle}>{group.label}</Text>
+            {group.definition ? (
+              <Text style={styles.exampleDefinition}>{group.definition}</Text>
+            ) : null}
+            {group.meaningVi ? (
+              <Text style={styles.exampleDefinitionVi}>{group.meaningVi}</Text>
+            ) : null}
+            {group.examples.map((example, exampleIndex) =>
+              renderExample(example, exampleIndex, group.id),
+            )}
           </View>
         ))}
       </View>
@@ -580,8 +738,15 @@ const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ onBack }) => {
                       />
                     </TouchableOpacity>
                   </View>
-                  {activeEntry.ipa ? (
-                    <Text style={styles.phonetic}>/{activeEntry.ipa}/</Text>
+                  {activeEntryMeaningVi ? (
+                    <Text style={styles.wordMeaningVi}>{activeEntryMeaningVi}</Text>
+                  ) : null}
+                  {activeEntry.ipa || activePartOfSpeech ? (
+                    <Text style={styles.wordMeta}>
+                      {[activeEntry.ipa ? `/${activeEntry.ipa}/` : null, activePartOfSpeech]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </Text>
                   ) : null}
                 </View>
                 <TouchableOpacity
@@ -627,11 +792,7 @@ const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ onBack }) => {
                     );
                   })}
                 </ScrollView>
-              ) : (
-                <Text style={styles.wordType}>
-                  {activeEntry.partOfSpeech || 'entry'}
-                </Text>
-              )}
+              ) : null}
 
               {activeEntry.inflections?.length ? (
                 <Text style={styles.inflections}>
@@ -897,13 +1058,28 @@ const styles = StyleSheet.create({
   phonetic: {
     color: '#49648a',
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '400',
     marginTop: 2,
+  },
+  wordMeaningVi: {
+    color: '#173b70',
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 21,
+    marginTop: 2,
+  },
+  wordMeta: {
+    color: '#49648a',
+    fontSize: 14,
+    fontWeight: '400',
+    lineHeight: 20,
+    marginTop: 2,
+    marginBottom: 8,
   },
   wordType: {
     color: '#0f63ff',
     fontSize: 14,
-    fontWeight: '900',
+    fontWeight: '400',
     marginTop: 4,
     marginBottom: 10,
   },
@@ -927,7 +1103,7 @@ const styles = StyleSheet.create({
   posChipText: {
     color: '#49648a',
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '500',
   },
   posChipTextActive: {
     color: '#0f63ff',
@@ -994,6 +1170,12 @@ const styles = StyleSheet.create({
     borderColor: '#0f8bff',
     backgroundColor: '#eef7ff',
   },
+  cardNumber: {
+    color: '#0f63ff',
+    fontSize: 13,
+    fontWeight: '900',
+    marginBottom: 9,
+  },
   senseHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1020,12 +1202,50 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
+  definitionItemBlock: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  subDefinitionBlock: {
+    marginTop: 3,
+  },
+  definitionBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  definitionBullet: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#0f8bff',
+    marginTop: 8,
+    marginRight: 8,
+  },
   definitionText: {
     color: '#173b70',
     fontSize: 14,
     fontWeight: '700',
     lineHeight: 20,
     marginBottom: 7,
+  },
+  seeAlsoBlock: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#d8e9fb',
+    paddingTop: 10,
+    marginTop: 2,
+  },
+  seeAlsoTitle: {
+    color: '#527093',
+    fontSize: 12,
+    fontWeight: '900',
+    marginBottom: 5,
+  },
+  seeAlsoText: {
+    color: '#0f63ff',
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 19,
   },
   exampleCard: {
     borderWidth: 1,
@@ -1041,6 +1261,20 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginBottom: 6,
   },
+  exampleDefinition: {
+    color: '#173b70',
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
+    marginBottom: 4,
+  },
+  exampleDefinitionVi: {
+    color: '#49648a',
+    fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 19,
+    marginBottom: 8,
+  },
   exampleLine: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1054,12 +1288,23 @@ const styles = StyleSheet.create({
     marginTop: 7,
     marginRight: 7,
   },
+  exampleContent: {
+    flex: 1,
+    minWidth: 0,
+  },
   exampleText: {
     flex: 1,
     color: '#173b70',
     fontSize: 13,
     fontWeight: '600',
     lineHeight: 18,
+  },
+  exampleTranslation: {
+    color: '#49648a',
+    fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 18,
+    marginTop: 2,
   },
   phraseCard: {
     borderWidth: 1,

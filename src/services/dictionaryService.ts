@@ -7,6 +7,31 @@ export type DictionarySense = {
   definition: string;
   meaningVi?: string | null;
   examples: string[];
+  exampleItems?: DictionaryExample[];
+};
+
+export type DictionaryExample = {
+  text: string;
+  meaningVi?: string | null;
+};
+
+export type DictionaryDefinitionItem = {
+  itemId: string;
+  senseNumber?: string | null;
+  usageLabels: string[];
+  definition: string;
+  meaningVi?: string | null;
+  examples: string[];
+  exampleItems?: DictionaryExample[];
+  subDefinition: boolean;
+};
+
+export type DictionaryDefinitionGroup = {
+  groupId: string;
+  senseNumber?: string | null;
+  usageLabels: string[];
+  definitions: DictionaryDefinitionItem[];
+  seeAlso: string[];
 };
 
 export type DictionaryPhrase = {
@@ -25,6 +50,7 @@ export type DictionaryEntry = {
   audioUrl?: string | null;
   inflections: string[];
   senses: DictionarySense[];
+  definitionGroups?: DictionaryDefinitionGroup[];
   phrases: DictionaryPhrase[];
   relatedWords: string[];
 };
